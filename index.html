@@ -26,7 +26,6 @@ let active=null,history=[],markets=[],cursor=null,loading=false,busy=false,poll=
 const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
 async function json(path){const u=new URL(path,location.href);u.searchParams.set('_graph_ts',Date.now());const r=await fetch(u,{cache:'no-store',signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('HTTP '+r.status);return r.json()}
 function price(m){const b=Number(m.yes_bid_dollars??(m.yes_bid!=null?m.yes_bid/100:NaN)),a=Number(m.yes_ask_dollars??(m.yes_ask!=null?m.yes_ask/100:NaN)),l=Number(m.last_price_dollars??(m.last_price!=null?m.last_price/100:NaN));if(b>0&&a>0)return(b+a)/2;if(l>0)return l;if(b>0)return b;return null}
-function filtered(){const q=$('marketsearch').value.toLowerCase().trim();return markets.filter(m=>(m.title||m.subtitle||'').toLowerCase().includes(q)||String(m.ticker).toLowerCase().includes(q))}
 async function loadMarkets(){
  if(loading)return;loading=true;
  try{
