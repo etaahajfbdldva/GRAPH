@@ -18,11 +18,11 @@ main{max-width:780px;margin:auto;padding:18px 0 32px}.top{display:flex;justify-c
 <section class="panel"><div class="signal"><div><div class="label">Directional read</div><strong id="signal" class="no-setup">NO SETUP</strong></div><div style="text-align:right"><div class="label">RSI · 14</div><strong id="rsi">—</strong></div></div><div class="reason" id="reason">Waiting for enough live observations. No signal is a guarantee.</div><div class="grid" style="margin-top:13px"><div class="metric"><span class="label">EMA 9</span><b id="ema9">—</b></div><div class="metric"><span class="label">EMA 21</span><b id="ema21">—</b></div><div class="metric"><span class="label">Spread</span><b id="spread">—</b></div></div></section>
 <section class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="label">Live YES price candles</div><div class="small">1-minute candles · updates every 5 seconds</div></div><div class="pill" id="points">0 points</div></div><canvas id="chart" width="900" height="280" aria-label="YES price candlestick chart"></canvas></section>
 <section class="panel"><div class="actions"><button class="btn primary" id="refresh">Refresh now</button><button class="btn" id="install" hidden>Install GRAPH</button></div><div class="small" id="updated" style="margin-top:12px">Not updated yet</div></section>
-<div class="foot">GRAPH is educational decision support, not financial advice or a trade recommendation. The signal analyzes recent YES contract movement and technical indicators; it does not predict settlement or guarantee outcomes. Data may be delayed or unavailable. Always check the market's official rules, strike, liquidity, spread and fees on Kalshi. GRAPH never places trades or accesses your account.</div>
+<div class="foot">GRAPH is educational decision support, not financial advice or a trade recommendation. The directional read combines BTC spot versus the market target, short-term BTC momentum, YES-price movement and the YES midpoint. It is a rough decision-support score, not a probability or guarantee. Kalshi settles using its benchmark rules, which may differ from the displayed spot feed. Data may be delayed or unavailable. Always check the market's official rules, strike, liquidity, spread and fees on Kalshi. GRAPH never places trades or accesses your account.</div>
 </main>
 <script>
 const API='/api/kalshi';
-const $=id=>document.getElementById(id);let active=null,spot=null,history=[],deferred=null,lastMarketTicker='';
+const $=id=>document.getElementById(id);let active=null,spot=null,history=[],spotHistory=[],deferred=null,lastMarketTicker='';
 const fmt=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
 const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
 async function json(url){const isKalshi=url.startsWith(API+'/');const urls=[url];let errors=[];for(const target of urls){try{const u=new URL(target,location.href);if(u.origin===location.origin&&u.pathname.startsWith('/api/'))u.searchParams.set('_graph_ts',String(Date.now()));const r=await fetch(u.toString(),{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target,location.href).host+': '+(e.message||'network/CORS error'))}}throw Error((isKalshi?'Kalshi API unavailable: ':'Data feed unavailable: ')+errors.join(' | '))}
@@ -36,7 +36,7 @@ async function fetchSpot(){
  throw Error('BTC spot feeds unavailable: '+errors.join(' | '));
 }
 async function discover(){
- const md=await json(API+'/markets?series_ticker=KXBTC15M&status=open&limit=200');
+ const md=await json(API+'/markets?series_ticker=KXBTC15M&limit=200');
  try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable';}
  const now=Date.now();
  let markets=(md.markets||[]).filter(m=>{
@@ -52,19 +52,32 @@ async function discover(){
  const m=markets[0];
  const d=await json(API+'/markets/'+encodeURIComponent(m.ticker));
  active=d.market||d;
- if(active.ticker!==lastMarketTicker){history=[];lastMarketTicker=active.ticker}
+ if(active.ticker!==lastMarketTicker){history=[];spotHistory=[];lastMarketTicker=active.ticker}
 }
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
-function indicators(vals){if(vals.length<3)return {signal:'NO SETUP',reason:'Collecting YES-price observations. '+vals.length+' of 8 needed.',rsi:null,e9:null,e21:null};
+function indicators(vals){
  const ema=(a,p)=>a.reduce((s,v,i)=>i===0?v:(v*(2/(p+1))+s*(1-2/(p+1))),a[0]);
- const e9=ema(vals.slice(-Math.min(vals.length,9)),9),e21=ema(vals,21);
+ const e9=vals.length?ema(vals.slice(-Math.min(vals.length,9)),9):null,e21=vals.length?ema(vals,21):null;
  let gains=0,loss=0;for(let i=Math.max(1,vals.length-14);i<vals.length;i++){const d=vals[i]-vals[i-1];if(d>0)gains+=d;else loss-=d}
- const rsi=loss===0?100:100-100/(1+(gains/Math.max(loss,1e-9)));
- const change=vals.at(-1)-vals.at(-Math.min(vals.length,8));
- let signal='NO SETUP',reason=vals.length<8?('Collecting YES-price observations: '+vals.length+' of 8.'): 'Eight or more observations are available, but momentum is mixed. Waiting for a clearer setup.';
- if(vals.length>=8&&e9>e21&&change>0&&rsi>=50&&rsi<75){signal='HIGHER';reason='YES price is rising, EMA 9 is above EMA 21, and RSI confirms positive momentum.'}
- else if(vals.length>=8&&e9<e21&&change<0&&rsi<=50&&rsi>25){signal='LOWER';reason='YES price is falling, EMA 9 is below EMA 21, and RSI confirms negative momentum.'}
- return {signal,reason,rsi,e9,e21}}
+ const rsi=vals.length<3?null:(loss===0?100:100-100/(1+(gains/Math.max(loss,1e-9))));
+ const strike=num(active?.floor_strike), spotNow=spotHistory.at(-1)?.p;
+ const olderSpot=spotHistory.find(x=>x.t<=Date.now()-60000)||spotHistory[0];
+ const spotMove=olderSpot&&spotNow!=null?spotNow-olderSpot.p:null;
+ const contractMove=vals.length>=6?vals.at(-1)-vals.at(-6):null;
+ const mid=vals.at(-1);
+ let score=0,parts=[];
+ if(strike!=null&&spotNow!=null){const d=spotNow-strike;score+=d>0?1:d<0?-1:0;parts.push('BTC '+(d>0?'above':d<0?'below':'at')+' target')}
+ if(spotMove!=null&&Math.abs(spotMove)>0.01){score+=spotMove>0?1:-1;parts.push('1-minute BTC momentum '+(spotMove>0?'up':'down'))}
+ if(contractMove!=null&&Math.abs(contractMove)>=0.005){score+=contractMove>0?1:-1;parts.push('YES-price trend '+(contractMove>0?'up':'down'))}
+ if(mid!=null){if(mid>=0.55){score++;parts.push('YES market price supports up')}else if(mid<=0.45){score--;parts.push('YES market price supports down')}}
+ let signal='NO SETUP',reason='Collecting live BTC and market observations before scoring a direction.';
+ if(strike!=null&&spotHistory.length>=6&&vals.length>=6){
+  if(score>=3){signal='HIGHER';reason='Higher bias · '+score+'/4 checks align. '+parts.join('; ')+'.'}
+  else if(score<=-3){signal='LOWER';reason='Lower bias · '+Math.abs(score)+'/4 checks align. '+parts.join('; ')+'.'}
+  else{reason='No clear edge · score '+score+'/4. '+(parts.join('; ')||'Waiting for confirmation')+'.'}
+ }
+ return {signal,reason,rsi,e9,e21,score,spotMove};
+}
 function draw(){const c=$('chart'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);ctx.strokeStyle='#283344';ctx.lineWidth=1;for(let i=0;i<5;i++){let y=15+i*(h-35)/4;ctx.beginPath();ctx.moveTo(45,y);ctx.lineTo(w-10,y);ctx.stroke()}
   if(!history.length)return;const buckets=new Map();history.forEach(x=>{const key=Math.floor(x.t/60000);let b=buckets.get(key);if(!b){b={t:key,o:x.p,h:x.p,l:x.p,c:x.p};buckets.set(key,b)}else{b.h=Math.max(b.h,x.p);b.l=Math.min(b.l,x.p);b.c=x.p}});const candles=[...buckets.values()];let vs=candles.flatMap(x=>[x.h,x.l]),lo=Math.min(...vs),hi=Math.max(...vs),pad=Math.max((hi-lo)*.12,.005);lo=Math.max(0,lo-pad);hi+=pad;if(hi-lo<.01){lo=Math.max(0,lo-.01);hi+=.01}
   const top=15,bottom=h-20,plotH=bottom-top,step=(w-65)/Math.max(1,candles.length),bodyW=Math.max(5,Math.min(22,step*.58));candles.forEach((x,i)=>{const px=48+i*step+step/2,y=v=>top+(hi-v)/(hi-lo)*plotH,up=x.c>=x.o,color=up?'#35d39a':'#ff555d';ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(px,y(x.h));ctx.lineTo(px,y(x.l));ctx.stroke();const yo=y(x.o),yc=y(x.c),bh=Math.max(2,Math.abs(yc-yo));ctx.fillRect(px-bodyW/2,Math.min(yo,yc),bodyW,bh)});
