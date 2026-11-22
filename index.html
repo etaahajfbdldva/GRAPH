@@ -25,7 +25,7 @@ const API='/api/kalshi';
 const $=id=>document.getElementById(id);let active=null,spot=null,history=[],deferred=null,lastMarketTicker='';
 const fmt=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
 const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
-async function json(url){const isKalshi=url.startsWith(API+'/');const urls=isKalshi?[url]:[url];let errors=[];for(const target of urls){try{const r=await fetch(target,{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target).host+': '+(e.message||'network/CORS error'))}}throw Error((isKalshi?'Kalshi API unavailable: ':'Data feed unavailable: ')+errors.join(' | '))}
+async function json(url){const isKalshi=url.startsWith(API+'/');const urls=[url];let errors=[];for(const target of urls){try{const u=new URL(target,location.href);if(u.origin===location.origin&&u.pathname.startsWith('/api/'))u.searchParams.set('_graph_ts',String(Date.now()));const r=await fetch(u.toString(),{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target,location.href).host+': '+(e.message||'network/CORS error'))}}throw Error((isKalshi?'Kalshi API unavailable: ':'Data feed unavailable: ')+errors.join(' | '))}
 async function fetchSpot(){
  const providers=[
   async()=>{const d=await json('/api/spot');return Number(d.data.amount)},
@@ -47,13 +47,13 @@ async function discover(){
  if(active.ticker!==lastMarketTicker){history=[];lastMarketTicker=active.ticker}
 }
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
-function indicators(vals){if(vals.length<3)return {signal:'WAIT',reason:'Collecting observations. Need at least 3 data points.',rsi:null,e9:null,e21:null};
+function indicators(vals){if(vals.length<3)return {signal:'WAIT',reason:'Collecting YES-price observations. '+vals.length+' of 8 needed.',rsi:null,e9:null,e21:null};
  const ema=(a,p)=>a.reduce((s,v,i)=>i===0?v:(v*(2/(p+1))+s*(1-2/(p+1))),a[0]);
  const e9=ema(vals.slice(-Math.min(vals.length,9)),9),e21=ema(vals,21);
  let gains=0,loss=0;for(let i=Math.max(1,vals.length-14);i<vals.length;i++){const d=vals[i]-vals[i-1];if(d>0)gains+=d;else loss-=d}
  const rsi=loss===0?100:100-100/(1+(gains/Math.max(loss,1e-9)));
  const change=vals.at(-1)-vals.at(-Math.min(vals.length,8));
- let signal='WAIT',reason='Mixed or insufficient momentum; wait for a clearer setup.';
+ let signal='WAIT',reason=vals.length<8?('Collecting YES-price observations: '+vals.length+' of 8.'): 'Eight or more observations are available, but momentum is mixed. Waiting for a clearer setup.';
  if(vals.length>=8&&e9>e21&&change>0&&rsi>=50&&rsi<75){signal='HIGHER';reason='YES price is rising, EMA 9 is above EMA 21, and RSI confirms positive momentum.'}
  else if(vals.length>=8&&e9<e21&&change<0&&rsi<=50&&rsi>25){signal='LOWER';reason='YES price is falling, EMA 9 is below EMA 21, and RSI confirms negative momentum.'}
  return {signal,reason,rsi,e9,e21}}
@@ -70,10 +70,10 @@ function render(){
  const vals=history.map(x=>x.p),a=indicators(vals);$('signal').textContent=a.signal;$('signal').className=a.signal.toLowerCase();$('reason').textContent=a.reason;$('rsi').textContent=a.rsi==null?'—':a.rsi.toFixed(1);$('ema9').textContent=cents(a.e9);$('ema21').textContent=cents(a.e21);$('points').textContent=history.length+' points';draw();
  const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time).getTime();const left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
 }
-async function tick(){$('refresh').disabled=true;$('refresh').textContent='Refreshing…';try{if(!active||Date.now()>new Date(active.close_time||0).getTime()-1000)await discover();else{const d=await json(API+'/markets/'+encodeURIComponent(active.ticker));active=d.market||d;try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable'}}
+let tickBusy=false;async function tick(){if(tickBusy)return;tickBusy=true;$('refresh').disabled=true;$('refresh').textContent='Refreshing…';try{if(!active||Date.now()>new Date(active.close_time||0).getTime()-1000)await discover();else{const d=await json(API+'/markets/'+encodeURIComponent(active.ticker));active=d.market||d;try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable'}}
  render();$('dot').classList.add('live');$('connection').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString();
- }catch(e){$('dot').classList.remove('live');$('connection').textContent='DATA ISSUE';$('reason').textContent=e.message+' Signal set to WAIT until reliable data returns.';$('signal').textContent='WAIT';$('signal').className='wait';$('updated').innerHTML='<span class="error">'+e.message+'</span>'}finally{$('refresh').disabled=false;$('refresh').textContent='Refresh now'}}
-$('refresh').onclick=tick;tick();setInterval(tick,5000);setInterval(()=>{if(active)render()},1000);
+ }catch(e){$('dot').classList.remove('live');$('connection').textContent='DATA ISSUE';$('reason').textContent=e.message+' Signal set to WAIT until reliable data returns.';$('signal').textContent='WAIT';$('signal').className='wait';$('updated').innerHTML='<span class="error">'+e.message+'</span>'}finally{$('refresh').disabled=false;$('refresh').textContent='Refresh now';tickBusy=false}}
+let pollTimer=null;function schedulePoll(){clearTimeout(pollTimer);if(!document.hidden)pollTimer=setTimeout(async()=>{await tick();schedulePoll()},5000)}$('refresh').onclick=async()=>{await tick();schedulePoll()};document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick().then(schedulePoll)}else clearTimeout(pollTimer)});tick().then(schedulePoll);setInterval(()=>{if(active)render()},1000);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('install').hidden=false});$('install').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;$('install').hidden=true}};
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script></body></html>
