@@ -21,11 +21,11 @@ main{max-width:780px;margin:auto;padding:18px 0 32px}.top{display:flex;justify-c
 <div class="foot">GRAPH is educational decision support, not financial advice or a trade recommendation. The signal analyzes recent YES contract movement and technical indicators; it does not predict settlement or guarantee outcomes. Data may be delayed or unavailable. Always check the market's official rules, strike, liquidity, spread and fees on Kalshi. GRAPH never places trades or accesses your account.</div>
 </main>
 <script>
-const API='https://external-api.kalshi.com/trade-api/v2';
+const APIS=['https://external-api.kalshi.com/trade-api/v2','https://api.elections.kalshi.com/trade-api/v2'];
 const $=id=>document.getElementById(id);let active=null,spot=null,history=[],deferred=null,lastMarketTicker='';
 const fmt=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
 const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
-async function json(url){try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){throw Error('Request failed ('+new URL(url).host+'): '+(e.message||'network/CORS error'))}}
+async function json(url){let errors=[];for(const base of APIS){const target=url.startsWith('https://external-api.kalshi.com/trade-api/v2')?base+url.slice('https://external-api.kalshi.com/trade-api/v2'.length):url;try{const r=await fetch(target,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target).host+': '+(e.message||'network/CORS error'))}}throw Error('Kalshi API unavailable: '+errors.join(' | '))}
 async function fetchSpot(){
  const providers=[
   async()=>{const d=await json('https://api.coinbase.com/v2/prices/BTC-USD/spot');return Number(d.data.amount)},
@@ -35,21 +35,18 @@ async function fetchSpot(){
  throw Error('BTC spot feeds unavailable: '+errors.join(' | '));
 }
 async function discover(){
- const [ev,bt]=await Promise.all([
-  json(API+'/events?series_ticker=KXBTC15M&status=open&with_nested_markets=true&limit=200'),
+ const [md,bt]=await Promise.all([
+  json(APIS[0]+'/markets?series_ticker=KXBTC15M&status=open&limit=200'),
   fetchSpot()
  ]);
  spot=bt;$('spot').textContent=fmt(spot);
- const now=Date.now();let events=(ev.events||[]).filter(e=>new Date(e.close_time||e.markets?.[0]?.close_time||0).getTime()>now);
- events.sort((a,b)=>new Date(a.close_time||a.markets?.[0]?.close_time)-new Date(b.close_time||b.markets?.[0]?.close_time));
- let chosenEvent=events[0];if(!chosenEvent)throw Error('No open BTC 15-minute event was returned by Kalshi.');
- let markets=chosenEvent.markets||[];
- if(!markets.length){const er=await json(API+'/events/'+encodeURIComponent(chosenEvent.event_ticker)+'?with_nested_markets=true');markets=er.event?.markets||[]}
- markets=markets.filter(m=>['open','active'].includes(String(m.status||'').toLowerCase())||!m.status);
- if(!markets.length)throw Error('The current event has no active contracts yet.');
- markets.sort((a,b)=>Math.abs(Number(a.floor_strike||a.strike||spot)-spot)-Math.abs(Number(b.floor_strike||b.strike||spot)-spot));
- const m=markets[0];const d=await json(API+'/markets/'+encodeURIComponent(m.ticker));
- active=d.market||d;active.event=chosenEvent;
+ const now=Date.now();
+ let markets=(md.markets||[]).filter(m=>String(m.status||'').toLowerCase()==='open'&&new Date(m.close_time||m.expiration_time||0).getTime()>now);
+ markets.sort((a,b)=>new Date(a.close_time||a.expiration_time)-new Date(b.close_time||b.expiration_time));
+ if(!markets.length)throw Error('No open BTC 15-minute contracts returned. Check the series ticker or market status.');
+ const m=markets[0];
+ const d=await json(APIS[0]+'/markets/'+encodeURIComponent(m.ticker));
+ active=d.market||d;
  if(active.ticker!==lastMarketTicker){history=[];lastMarketTicker=active.ticker}
 }
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
