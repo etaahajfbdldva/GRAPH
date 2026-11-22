@@ -1,4 +1,4 @@
-const CACHE='graph-btc15m-v2';
+const CACHE='graph-btc15m-v3';
 const CORE=['./','./index.html','./manifest.webmanifest','./icon.svg'];
 self.addEventListener('install',event=>{
   self.skipWaiting();
