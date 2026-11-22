@@ -87,7 +87,7 @@ async function privateKalshiFetch(env, method, path, body) {
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Cache-Control": "no-store"
 };
@@ -96,7 +96,41 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    if (request.method !== "GET") return new Response("Method not allowed", { status: 405, headers: cors });
+    if (request.method !== "GET" && request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: cors });
+    if (url.pathname === "/api/orders" && request.method === "POST") {
+      try {
+        const input = await request.json();
+        const ticker = String(input.ticker || "");
+        const side = String(input.side || "").toLowerCase();
+        const count = Number(input.count);
+        const priceCents = Number(input.price_cents);
+        if (!/^[A-Z0-9._-]{3,80}$/.test(ticker) || !["yes", "no"].includes(side) ||
+            !Number.isInteger(count) || count < 1 || count > 10 ||
+            !Number.isInteger(priceCents) || priceCents < 1 || priceCents > 99) {
+          return Response.json({ error: "Invalid order. Quantity must be 1–10 and limit price 1–99 cents." }, { status: 400, headers: cors });
+        }
+        // Verify the selected market is still open before accepting an order.
+        const marketData = await privateKalshiFetch(env, "GET", "/markets/" + encodeURIComponent(ticker));
+        const status = String(marketData.market?.status || "").toLowerCase();
+        if (status && !["open", "active"].includes(status)) {
+          return Response.json({ error: "This market is no longer open. Refresh GRAPH PRO before ordering." }, { status: 409, headers: cors });
+        }
+        // V2 uses the YES book: bid buys YES; ask buys NO at its complementary YES price.
+        const yesBookPrice = side === "yes" ? priceCents / 100 : 1 - priceCents / 100;
+        const order = await privateKalshiFetch(env, "POST", "/portfolio/events/orders", {
+          ticker,
+          side: side === "yes" ? "bid" : "ask",
+          count: String(count),
+          price: yesBookPrice.toFixed(4),
+          time_in_force: "immediate_or_cancel",
+          self_trade_prevention_type: "taker_at_cross",
+          client_order_id: crypto.randomUUID()
+        });
+        return Response.json({ submitted: true, order }, { headers: cors });
+      } catch (error) {
+        return Response.json({ error: error.message || "Order submission failed" }, { status: error.status || 502, headers: cors });
+      }
+    }
     try {
       let upstream;
       if (url.pathname === "/api/account/test" && request.method === "GET") {
