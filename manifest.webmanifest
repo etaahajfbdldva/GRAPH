@@ -1,0 +1,17 @@
+{
+  "name": "GRAPH — Bitcoin 15M",
+  "short_name": "GRAPH",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#090b10",
+  "theme_color": "#090b10",
+  "description": "Live Bitcoin 15-minute Kalshi market analysis",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
