@@ -1,5 +1,6 @@
 const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
 const COINBASE_SPOT = "https://api.coinbase.com/v2/prices/BTC-USD/spot";
+const ETH_SPOT = "https://api.coinbase.com/v2/prices/ETH-USD/spot";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -15,7 +16,7 @@ export default {
     try {
       let upstream;
       if (url.pathname === "/api/spot") {
-        upstream = COINBASE_SPOT;
+        upstream = url.searchParams.get("asset") === "ETH" ? ETH_SPOT : COINBASE_SPOT;
       } else if (url.pathname.startsWith("/api/kalshi/")) {
         const path = url.pathname.slice("/api/kalshi/".length);
         if (!/^[a-zA-Z0-9_./%-]+$/.test(path) || path.includes("..")) {
