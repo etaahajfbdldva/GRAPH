@@ -33,6 +33,14 @@ main{max-width:850px;margin:auto;padding:16px 0 34px}.top{display:flex;justify-c
   </div>
   <div class="reason" id="orderStatus" role="status">No order submitted. A signal alone never places an order.</div>
 </section>
+<section class="panel" id="profitPanel">
+  <div class="row"><div><div class="label">Take-profit cash-out</div><b>Adjust your profit target</b></div><div class="pill" id="profitTargetLabel">10%</div></div>
+  <input id="profitTarget" type="range" min="1" max="100" step="1" value="10" style="margin-top:12px">
+  <div class="row small"><span>1%</span><span>100%</span></div>
+  <div class="grid"><div class="metric"><span class="label">Open position</span><b id="positionSide">—</b></div><div class="metric"><span class="label">Est. net P/L</span><b id="positionPnl">—</b></div><div class="metric"><span class="label">Target</span><b id="positionGoal">—</b></div></div>
+  <div class="actions" style="margin-top:10px"><button class="btn" id="checkProfit" type="button">Check profit</button><button class="btn" id="cashOut" type="button" disabled>Review cash-out</button></div>
+  <div class="reason" id="profitStatus">Cash-out is manual: check the position, then review and confirm the sell order. No automatic sell is running.</div>
+</section>
 <div class="foot">GRAPH PRO is a technical decision aid for BTC 15-minute Kalshi Higher/Lower contracts. “Setup strength” is indicator agreement, NOT a probability of winning. It is not a recommendation or guarantee. Check the contract's exact rules, strike/threshold, remaining time, bid/ask, fees and liquidity before any trade. The BTC spot feed may differ from Kalshi's settlement benchmark. No trades are placed.</div>
 </main>
 <script>
@@ -89,31 +97,68 @@ $('indicators').innerHTML=rows.join('')+setIndicator('24-hour contract volume',N
 $('timeleft').textContent=remain==null?'—':Math.floor(remain/60)+':'+String(Math.floor(remain%60)).padStart(2,'0');
 }
 
+
 async function submitApprovedOrder(side){
-  if(!market || !market.ticker){$('orderStatus').textContent='No active market loaded. Refresh first.';return}
-  const count=Number($('orderCount').value);
-  const priceCents=Number(side==='yes' ? $('yesLimit').value : $('noLimit').value);
-  if(!Number.isInteger(count)||count<1||count>10){$('orderStatus').textContent='Quantity must be between 1 and 10 contracts.';return}
-  if(!Number.isInteger(priceCents)||priceCents<1||priceCents>99){$('orderStatus').textContent='Limit price must be 1–99 cents.';return}
-  const estimated=count*priceCents/100;
-  const ok=confirm('Submit BUY '+side.toUpperCase()+'?\\nMarket: '+market.ticker+'\\nContracts: '+count+'\\nLimit: '+priceCents+'¢ each\\nMaximum contract cost before fees: if(busy)return;busy=true;try{if(!market||Date.now()-lastMarketFetch>60000)await findMarket();const [s,d]=await Promise.all([spot(),get(API+'/markets/'+encodeURIComponent(market.ticker))]);market=d.market||d;const now=Date.now();btcSamples.push({t:now,p:s});btcSamples=btcSamples.slice(-360);const mp=mid(market);if(mp!=null){samples.push({t:now,p:mp});samples=samples.slice(-360)}$('btc').textContent=fmtUsd(s);const delta=btcSamples.length>1?s-btcSamples[0].p:0;$('spotmove').textContent=(delta>=0?'+':'')+fmtUsd(delta)+' since this page opened';$('marketname').textContent=(market.title||market.ticker)+' · '+market.ticker;$('yesask').textContent=fmtC(yesAsk(market));if(Number.isFinite(yesAsk(market)))$('yesLimit').value=Math.max(1,Math.min(99,Math.round(yesAsk(market)*100)));$('noask').textContent=fmtC(yesBid(market)>0?1-yesBid(market):NaN);if(yesBid(market)>0)$('noLimit').value=Math.max(1,Math.min(99,Math.round((1-yesBid(market))*100)));$('mid').textContent=fmtC(mp);const close=Date.parse(market.close_time||market.expiration_time||market.latest_expiration_time||'');const left=Number.isFinite(close)?Math.max(0,Math.floor((close-now)/1000)):null;$('timer').textContent=left==null?'—':Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('samples').textContent=btcSamples.length+' samples';$('dot').classList.add('live');$('conn').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString();analyze();renderChart()}catch(e){$('conn').textContent='DATA ISSUE';$('dot').classList.remove('live');$('why').textContent=e.message;$('updated').textContent=e.message}finally{busy=false}}
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));$('modeLabel').textContent=mode.toUpperCase();$('modehelp').textContent=({conservative:'Conservative: stronger agreement, tighter spread, more time.',balanced:'Balanced: several aligned indicators and reasonable entry cost.',aggressive:'Aggressive: earlier setups, lower threshold and wider spread.'})[mode];analyze()});
-$('refresh').onclick=tick;$('reset').onclick=()=>{btcSamples=[];samples=[];analyze();renderChart();$('why').textContent='History reset. Collecting new observations.'};tick();setInterval(tick,2000);
-</script></body></html>+estimated.toFixed(2)+'\\nUnfilled quantity will be cancelled. This is a LIVE order if production is selected.');
+  if(!market?.ticker){$('orderStatus').textContent='No active market loaded.';return}
+  const count=Number($('orderCount').value),priceCents=Number(side==='yes' ? $('yesLimit').value : $('noLimit').value);
+  if(!Number.isInteger(count)||count<1||count>10||!Number.isInteger(priceCents)||priceCents<1||priceCents>99){$('orderStatus').textContent='Use quantity 1–10 and a limit price 1–99 cents.';return}
+  const ok=confirm('Submit LIVE BUY '+side.toUpperCase()+'?\\nMarket: '+market.ticker+'\\nContracts: '+count+'\\nLimit: '+priceCents+'¢ each\\nMaximum contract cost before fees: $'+(count*priceCents/100).toFixed(2));
   if(!ok)return;
-  $('buyYes').disabled=true;$('buyNo').disabled=true;$('orderStatus').textContent='Submitting approved order…';
+  $('buyYes').disabled=$('buyNo').disabled=true;$('orderStatus').textContent='Submitting approved order…';
   try{
     const response=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticker:market.ticker,side,count,price_cents:priceCents})});
-    const data=await response.json();
-    if(!response.ok||!data.submitted)throw new Error(data.error||'Order was not accepted');
-    const o=data.order||{};
-    $('orderStatus').textContent='Kalshi accepted the order. Filled: '+(o.fill_count??'check order details')+' · Remaining: '+(o.remaining_count??'unknown')+' · Order ID: '+(o.order_id??'not returned')+'. Acceptance does not guarantee a fill.';
+    const data=await response.json();if(!response.ok||!data.submitted)throw Error(data.error||'Order was not accepted');
+    const o=data.order||{};$('orderStatus').textContent='Kalshi accepted the order. Filled: '+(o.fill_count??'check order details')+' · Order ID: '+(o.order_id??'not returned')+'. Acceptance does not guarantee a fill.';
   }catch(e){$('orderStatus').textContent='Order failed: '+e.message}
-  finally{$('buyYes').disabled=false;$('buyNo').disabled=false}
+  finally{$('buyYes').disabled=$('buyNo').disabled=false}
 }
-$('buyYes').onclick=()=>submitApprovedOrder('yes');
-$('buyNo').onclick=()=>submitApprovedOrder('no');
-\nasync function tick(){if(busy)return;busy=true;try{if(!market||Date.now()-lastMarketFetch>60000)await findMarket();const [s,d]=await Promise.all([spot(),get(API+'/markets/'+encodeURIComponent(market.ticker))]);market=d.market||d;const now=Date.now();btcSamples.push({t:now,p:s});btcSamples=btcSamples.slice(-360);const mp=mid(market);if(mp!=null){samples.push({t:now,p:mp});samples=samples.slice(-360)}$('btc').textContent=fmtUsd(s);const delta=btcSamples.length>1?s-btcSamples[0].p:0;$('spotmove').textContent=(delta>=0?'+':'')+fmtUsd(delta)+' since this page opened';$('marketname').textContent=(market.title||market.ticker)+' · '+market.ticker;$('yesask').textContent=fmtC(yesAsk(market));$('noask').textContent=fmtC(yesBid(market)>0?1-yesBid(market):NaN);$('mid').textContent=fmtC(mp);const close=Date.parse(market.close_time||market.expiration_time||market.latest_expiration_time||'');const left=Number.isFinite(close)?Math.max(0,Math.floor((close-now)/1000)):null;$('timer').textContent=left==null?'—':Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('samples').textContent=btcSamples.length+' samples';$('dot').classList.add('live');$('conn').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString();analyze();renderChart()}catch(e){$('conn').textContent='DATA ISSUE';$('dot').classList.remove('live');$('why').textContent=e.message;$('updated').textContent=e.message}finally{busy=false}}
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));$('modeLabel').textContent=mode.toUpperCase();$('modehelp').textContent=({conservative:'Conservative: stronger agreement, tighter spread, more time.',balanced:'Balanced: several aligned indicators and reasonable entry cost.',aggressive:'Aggressive: earlier setups, lower threshold and wider spread.'})[mode];analyze()});
-$('refresh').onclick=tick;$('reset').onclick=()=>{btcSamples=[];samples=[];analyze();renderChart();$('why').textContent='History reset. Collecting new observations.'};tick();setInterval(tick,2000);
+$('buyYes').onclick=()=>submitApprovedOrder('yes');$('buyNo').onclick=()=>submitApprovedOrder('no');
+let currentPosition=null;
+$('profitTarget').oninput=()=>{$('profitTargetLabel').textContent=$('profitTarget').value+'%';$('positionGoal').textContent=$('profitTarget').value+'%';};
+async function checkProfit(){
+  $('cashOut').disabled=true;$('profitStatus').textContent='Checking your open Kalshi position…';currentPosition=null;
+  try{
+    if(!market?.ticker)throw Error('No active market. Refresh the dashboard first.');
+    const r=await fetch('/api/position?ticker='+encodeURIComponent(market.ticker),{cache:'no-store'}),d=await r.json();
+    if(!r.ok)throw Error(d.error||'Could not read position');
+    if(!d.position||Number(d.position.contracts)===0){$('positionSide').textContent='None';$('positionPnl').textContent='—';$('profitStatus').textContent='No open position in this BTC contract.';return}
+    currentPosition=d.position;
+    const pnl=Number(currentPosition.estimated_net_pnl_dollars),basis=Number(currentPosition.cost_basis_dollars),pct=basis>0?pnl/basis*100:0,target=Number($('profitTarget').value);
+    $('positionSide').textContent=currentPosition.side+' × '+currentPosition.contracts;
+    $('positionPnl').textContent=(pnl>=0?'+':'')+'$'+pnl.toFixed(2)+' ('+pct.toFixed(1)+'%)';
+    $('positionPnl').className=pnl>=0?'green':'red';$('positionGoal').textContent=target+'%';
+    const reached=pct>=target;
+    $('profitStatus').textContent=reached?'Profit target reached based on current bid estimate. Review the live cash-out quote before confirming.':'Target not reached yet. Estimated P/L uses current bid and may change; fees and execution can change the result.';
+    $('cashOut').disabled=!reached;
+  }catch(e){$('profitStatus').textContent='Position check failed: '+e.message}
+}
+$('checkProfit').onclick=checkProfit;
+$('cashOut').onclick=async()=>{
+  if(!currentPosition||!market?.ticker)return;
+  const ok=confirm('Review LIVE cash-out for '+currentPosition.side+' position of '+currentPosition.contracts+' contracts in '+market.ticker+'?\\nThis submits a reduce-only immediate-or-cancel order at the current bid/ask. Unfilled contracts remain in your position.');
+  if(!ok)return;
+  $('cashOut').disabled=true;$('profitStatus').textContent='Submitting reduce-only cash-out…';
+  try{
+    const r=await fetch('/api/close-position',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticker:market.ticker})}),d=await r.json();
+    if(!r.ok||!d.submitted)throw Error(d.error||'Cash-out was not accepted');
+    $('profitStatus').textContent='Cash-out order accepted. Filled: '+(d.order?.fill_count??'check Kalshi')+' contracts. Any unfilled amount remains open. Check position again for final P/L.';
+    currentPosition=null;
+  }catch(e){$('profitStatus').textContent='Cash-out failed: '+e.message}
+};
+async function tick(){
+ if(busy)return;busy=true;
+ try{
+  if(!market||Date.now()-lastMarketFetch>60000)await findMarket();
+  const [s,d]=await Promise.all([spot(),get(API+'/markets/'+encodeURIComponent(market.ticker))]);market=d.market||d;
+  const now=Date.now();btcSamples.push({t:now,p:s});btcSamples=btcSamples.slice(-360);const mp=mid(market);if(mp!=null){samples.push({t:now,p:mp});samples=samples.slice(-360)}
+  $('btc').textContent=fmtUsd(s);const delta=btcSamples.length>1?s-btcSamples[0].p:0;$('spotmove').textContent=(delta>=0?'+':'')+fmtUsd(delta)+' since this page opened';
+  $('marketname').textContent=(market.title||market.ticker)+' · '+market.ticker;$('yesask').textContent=fmtC(yesAsk(market));$('noask').textContent=fmtC(yesBid(market)>0?1-yesBid(market):NaN);$('mid').textContent=fmtC(mp);
+  const close=Date.parse(market.close_time||market.expiration_time||market.latest_expiration_time||'');const left=Number.isFinite(close)?Math.max(0,Math.floor((close-now)/1000)):null;
+  $('timer').textContent=left==null?'—':Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('samples').textContent=btcSamples.length+' samples';$('dot').classList.add('live');$('conn').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString();analyze();renderChart();
+ }catch(e){$('conn').textContent='DATA ISSUE';$('dot').classList.remove('live');$('why').textContent=e.message;$('updated').textContent=e.message}
+ finally{busy=false}
+}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));$('modeLabel').textContent=mode.toUpperCase();$('modehelp').textContent=({conservative:'Conservative: stronger agreement, tighter spread, more time.',balanced:'Balanced: several aligned indicators and reasonable spread.',aggressive:'Aggressive: earlier setups, lower threshold and wider spread.'})[mode];analyze()});
+$('refresh').onclick=tick;$('reset').onclick=()=>{btcSamples=[];samples=[];analyze();renderChart();$('why').textContent='History reset. Collecting new observations.'};
+tick();setInterval(tick,2000);
 </script></body></html>
