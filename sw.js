@@ -1,4 +1,4 @@
-const CACHE='graph-btc15m-v3';
+const CACHE='graph-btc15m-v4';
 const CORE=['./','./index.html','./manifest.webmanifest','./icon.svg'];
 self.addEventListener('install',event=>{
   self.skipWaiting();
@@ -15,6 +15,11 @@ self.addEventListener('fetch',event=>{
   const request=event.request;
   const url=new URL(request.url);
   if(request.method!=='GET'||url.origin!==self.location.origin)return;
+  // Never cache live API responses: BTC and Kalshi data must always be fresh.
+  if(url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(request,{cache:'no-store'}));
+    return;
+  }
   if(request.mode==='navigate'||url.pathname.endsWith('/index.html')||url.pathname.endsWith('/')){
     event.respondWith((async()=>{
       try{
