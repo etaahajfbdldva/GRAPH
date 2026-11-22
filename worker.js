@@ -18,7 +18,7 @@ export default {
         upstream = COINBASE_SPOT;
       } else if (url.pathname.startsWith("/api/kalshi/")) {
         const path = url.pathname.slice("/api/kalshi/".length);
-        if (!/^[a-zA-Z0-9_./%-]+-$/.test(path) || path.includes("..")) {
+        if (!/^[a-zA-Z0-9_./%-]+$/.test(path) || path.includes("..")) {
           return Response.json({ error: "Invalid API path" }, { status: 400, headers: cors });
         }
         upstream = KALSHI_BASE + "/" + path + url.search;
