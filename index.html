@@ -160,13 +160,4 @@ $('saveSettings').onclick=()=>{
 };
 $('autoTrading').addEventListener('change',()=>{$('autoTrading').checked=false;$('autoLabel').textContent='OFF';$('settingsStatus').textContent='Auto trading cannot be enabled yet; live order execution and server-side risk checks are not installed.'});
 loadTradingSettings();
-</script></body></html>+(cents/100).toFixed(2):'Connected';
-  $('accountnote').textContent='Private account authentication succeeded. This test did not place an order.';
- }catch(e){
-  $('accountstatus').textContent='NOT CONNECTED';$('accountstatus').style.color='#ff9298';
-  $('accountnote').textContent=e.message;
- }finally{$('connectaccount').disabled=false;$('connectaccount').textContent='Test secure connection'}
-}
-$('connectaccount').onclick=testAccount;
-$('refresh').onclick=async()=>{await tick();schedule()};document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick().then(schedule)}else clearTimeout(poll)});loadMarkets().then(()=>{tick();schedule()});setInterval(()=>{if(active){const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time||0).getTime(),left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=close?String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0'):'—'}},1000);window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('install').hidden=false});$('install').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;$('install').hidden=true}};if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script></body></html>
