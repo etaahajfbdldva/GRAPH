@@ -39,9 +39,16 @@ async function discover(){
  const md=await json(API+'/markets?series_ticker=KXBTC15M&status=open&limit=200');
  try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable';}
  const now=Date.now();
- let markets=(md.markets||[]).filter(m=>String(m.status||'').toLowerCase()==='open'&&new Date(m.close_time||m.expiration_time||0).getTime()>now);
- markets.sort((a,b)=>new Date(a.close_time||a.expiration_time)-new Date(b.close_time||b.expiration_time));
- if(!markets.length)throw Error('No open BTC 15-minute contracts returned. Check the series ticker or market status.');
+ let markets=(md.markets||[]).filter(m=>{
+  const status=String(m.status||'').toLowerCase();
+  const close=new Date(m.close_time||m.expiration_time||m.latest_expiration_time||0).getTime();
+  return (status==='open'||status==='active'||status==='initialized'||status==='')&&Number.isFinite(close)&&close>now;
+ });
+ markets.sort((a,b)=>new Date(a.close_time||a.expiration_time||a.latest_expiration_time)-new Date(b.close_time||b.expiration_time||b.latest_expiration_time));
+ if(!markets.length){
+  const sample=(md.markets||[]).slice(0,3).map(m=>String(m.status||'unknown')+' '+String(m.ticker||'')).join(', ');
+  throw Error('No current BTC 15-minute contract found. Kalshi returned '+(md.markets||[]).length+' markets'+(sample?' (statuses: '+sample+')':'')+'.');
+ }
  const m=markets[0];
  const d=await json(API+'/markets/'+encodeURIComponent(m.ticker));
  active=d.market||d;
