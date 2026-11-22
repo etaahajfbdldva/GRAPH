@@ -4,7 +4,7 @@ const ETH_SPOT = "https://api.coinbase.com/v2/prices/ETH-USD/spot";
 
 
 function pemBytes(pem) {
-  const body = pem.replace(/-----BEGIN [^-]+-----/g, "").replace(/-----END [^-]+-----/g, "").replace(/\s/g, "");
+  const body = pem.replace(/-----BEGIN [^-]+-----/g, "").replace(/-----END [^-]+-----/g, "").replace(/[\t\n\r ]/g, "");
   const raw = atob(body);
   return Uint8Array.from(raw, c => c.charCodeAt(0));
 }
