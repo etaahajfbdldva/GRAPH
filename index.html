@@ -25,7 +25,7 @@ const API='https://external-api.kalshi.com/trade-api/v2';
 const $=id=>document.getElementById(id);let active=null,spot=null,history=[],deferred=null,lastMarketTicker='';
 const fmt=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
 const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
-async function json(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status+' from market data');return r.json()}
+async function json(url){try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){throw Error('Request failed ('+new URL(url).host+'): '+(e.message||'network/CORS error'))}}
 async function discover(){
  const [ev,bt]=await Promise.all([
   json(API+'/events?series_ticker=KXBTC15M&status=open&with_nested_markets=true&limit=200'),
