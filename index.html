@@ -90,15 +90,40 @@ function render(){
 async function tick(){if(busy)return;busy=true;$('refresh').disabled=true;$('refresh').textContent='Refreshing…';try{if(active){const d=await json(API+'/markets/'+encodeURIComponent(active.ticker));active=d.market||d;render()}$('dot').classList.add('live');$('connection').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString()}catch(e){$('dot').classList.remove('live');$('connection').textContent='DATA ISSUE';$('reason').textContent=e.message;$('updated').textContent=e.message;$('signal').textContent='NO SETUP'}finally{$('refresh').disabled=false;$('refresh').textContent='Refresh now';busy=false}}
 function schedule(){clearTimeout(poll);if(!document.hidden)poll=setTimeout(async()=>{await tick();schedule()},2000)}
 async function testAccount(){
- $('connectaccount').disabled=true;$('connectaccount').textContent='Checking…';
- try{
-  const r=await fetch('/api/account/test',{cache:'no-store'});
-  const d=await r.json();
-  if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
-  $('accountstatus').textContent='CONNECTED';$('accountstatus').style.color='#35d39a';
-  $('accountenv').textContent='Kalshi '+String(d.environment||'account').toUpperCase();
-  const cents=Number(d.balance);
-  $('accountbalance').textContent=Number.isFinite(cents)?'document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick().then(schedule)}else clearTimeout(poll)});loadMarkets().then(()=>{tick();schedule()});setInterval(()=>{if(active){const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time||0).getTime(),left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=close?String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0'):'—'}},1000);window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('install').hidden=false});$('install').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;$('install').hidden=true}};if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  const button=$('connectaccount');
+  button.disabled=true;
+  button.textContent='Checking…';
+  $('accountstatus').textContent='CONNECTING…';
+  $('accountstatus').style.color='#f4c96b';
+  $('accountnote').textContent='Checking your private Kalshi API connection. No trades will be placed.';
+  try{
+    const response=await fetch('/api/account/test',{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.detail||data.error||('HTTP '+response.status));
+    if(data.connected!==true) throw new Error(data.detail||data.error||'Kalshi did not confirm the connection.');
+    $('accountstatus').textContent='CONNECTED';
+    $('accountstatus').style.color='#35d39a';
+    $('accountenv').textContent='Kalshi '+String(data.environment||'account').toUpperCase();
+    const balance=Number(data.balance);
+    $('accountbalance').textContent=Number.isFinite(balance)?'$'+(balance/100).toFixed(2):'Connected';
+    $('accountnote').textContent='Private account authentication succeeded. This test did not place an order.';
+  }catch(error){
+    $('accountstatus').textContent='NOT CONNECTED';
+    $('accountstatus').style.color='#ff9298';
+    $('accountnote').textContent=error.name==='TimeoutError'?'Connection timed out. Please try again.':String(error.message||error);
+  }finally{
+    button.disabled=false;
+    button.textContent='Test secure connection';
+  }
+}
+$('connectaccount').onclick=testAccount;
+$('refresh').onclick=async()=>{await tick();schedule()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick().then(schedule)}else clearTimeout(poll)});
+loadMarkets().then(()=>{tick();schedule()});
+setInterval(()=>{if(active){const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time||0).getTime(),left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=close?String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0'):'—'}},1000);
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('install').hidden=false});
+$('install').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;$('install').hidden=true}};
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script></body></html>+(cents/100).toFixed(2):'Connected';
   $('accountnote').textContent='Private account authentication succeeded. This test did not place an order.';
  }catch(e){
