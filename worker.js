@@ -69,7 +69,10 @@ async function privateKalshiFetch(env, method, path, body) {
   let data;
   try { data = JSON.parse(raw); } catch { data = { error: raw.slice(0, 500) }; }
   if (!response.ok) {
-    const error = new Error(data.message || data.error || ("Kalshi returned HTTP " + response.status));
+    const detail = typeof data.message === "string" ? data.message
+      : typeof data.error === "string" ? data.error
+      : JSON.stringify(data);
+    const error = new Error("Kalshi HTTP " + response.status + ": " + (detail || raw.slice(0, 400)));
     error.status = response.status;
     throw error;
   }
@@ -117,7 +120,10 @@ export default {
         headers: { ...cors, "Content-Type": response.headers.get("Content-Type") || "application/json" }
       });
     } catch (error) {
-      return Response.json({ error: "Upstream data request failed", detail: String(error?.message || error) }, { status: 502, headers: cors });
+      const detail = error && typeof error.message === "string" ? error.message
+        : error && typeof error === "object" ? JSON.stringify(error)
+        : String(error);
+      return Response.json({ error: "Upstream data request failed", detail }, { status: 502, headers: cors });
     }
   }
 };
