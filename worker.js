@@ -20,9 +20,15 @@ function pemBytes(pem) {
 }
 
 async function kalshiAuth(env, method, apiPath) {
-  const keyId = env.KALSHI_API_KEY_ID;
-  const pem = env.KALSHI_PRIVATE_KEY;
-  if (!keyId || !pem) throw new Error("Kalshi API secrets are not configured in Cloudflare.");
+  // Keep demo and production credentials separate. Demo is the safe default.
+  const production = env.KALSHI_ENV === "production";
+  const keyId = production ? env.KALSHI_API_KEY_ID : env.KALSHI_DEMO_API_KEY_ID;
+  const pem = production ? env.KALSHI_PRIVATE_KEY : env.KALSHI_DEMO_PRIVATE_KEY;
+  if (!keyId || !pem) {
+    throw new Error(production
+      ? "Production Kalshi API secrets are not configured in Cloudflare."
+      : "Demo Kalshi API secrets are not configured. Add KALSHI_DEMO_API_KEY_ID and KALSHI_DEMO_PRIVATE_KEY in Cloudflare.");
+  }
   const timestamp = String(Date.now());
   const path = apiPath.split("?")[0];
   const message = new TextEncoder().encode(timestamp + method.toUpperCase() + path);
