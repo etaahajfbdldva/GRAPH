@@ -21,28 +21,28 @@ main{max-width:780px;margin:auto;padding:18px 0 32px}.top{display:flex;justify-c
 <div class="foot">GRAPH is educational decision support, not financial advice or a trade recommendation. The signal analyzes recent YES contract movement and technical indicators; it does not predict settlement or guarantee outcomes. Data may be delayed or unavailable. Always check the market's official rules, strike, liquidity, spread and fees on Kalshi. GRAPH never places trades or accesses your account.</div>
 </main>
 <script>
-const APIS=['https://api.elections.kalshi.com/trade-api/v2','https://external-api.kalshi.com/trade-api/v2'];
+const API='/api/kalshi';
 const $=id=>document.getElementById(id);let active=null,spot=null,history=[],deferred=null,lastMarketTicker='';
 const fmt=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
 const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
-async function json(url){const isKalshi=APIS.some(base=>url.startsWith(base));const urls=isKalshi?APIS.map(base=>{const path=url.slice(url.indexOf('/trade-api/v2')+'/trade-api/v2'.length);return base+path}):[url];let errors=[];for(const target of urls){try{const r=await fetch(target,{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target).host+': '+(e.message||'network/CORS error'))}}throw Error((isKalshi?'Kalshi API unavailable: ':'Data feed unavailable: ')+errors.join(' | '))}
+async function json(url){const isKalshi=url.startsWith(API+'/');const urls=isKalshi?[url]:[url];let errors=[];for(const target of urls){try{const r=await fetch(target,{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target).host+': '+(e.message||'network/CORS error'))}}throw Error((isKalshi?'Kalshi API unavailable: ':'Data feed unavailable: ')+errors.join(' | '))}
 async function fetchSpot(){
  const providers=[
-  async()=>{const d=await json('https://api.coinbase.com/v2/prices/BTC-USD/spot');return Number(d.data.amount)},
+  async()=>{const d=await json('/api/spot');return Number(d.data.amount)},
   async()=>{const d=await json('https://api.kraken.com/0/public/Ticker?pair=XBTUSD');const k=Object.keys(d.result||{})[0];return Number(d.result[k].c[0])}
  ];
  let errors=[];for(const get of providers){try{const p=await get();if(Number.isFinite(p)&&p>0)return p}catch(e){errors.push(e.message)}}
  throw Error('BTC spot feeds unavailable: '+errors.join(' | '));
 }
 async function discover(){
- const md=await json(APIS[0]+'/markets?series_ticker=KXBTC15M&status=open&limit=200');
+ const md=await json(API+'/markets?series_ticker=KXBTC15M&status=open&limit=200');
  try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable';}
  const now=Date.now();
  let markets=(md.markets||[]).filter(m=>String(m.status||'').toLowerCase()==='open'&&new Date(m.close_time||m.expiration_time||0).getTime()>now);
  markets.sort((a,b)=>new Date(a.close_time||a.expiration_time)-new Date(b.close_time||b.expiration_time));
  if(!markets.length)throw Error('No open BTC 15-minute contracts returned. Check the series ticker or market status.');
  const m=markets[0];
- const d=await json(APIS[0]+'/markets/'+encodeURIComponent(m.ticker));
+ const d=await json(API+'/markets/'+encodeURIComponent(m.ticker));
  active=d.market||d;
  if(active.ticker!==lastMarketTicker){history=[];lastMarketTicker=active.ticker}
 }
@@ -70,7 +70,7 @@ function render(){
  const vals=history.map(x=>x.p),a=indicators(vals);$('signal').textContent=a.signal;$('signal').className=a.signal.toLowerCase();$('reason').textContent=a.reason;$('rsi').textContent=a.rsi==null?'—':a.rsi.toFixed(1);$('ema9').textContent=cents(a.e9);$('ema21').textContent=cents(a.e21);$('points').textContent=history.length+' points';draw();
  const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time).getTime();const left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
 }
-async function tick(){$('refresh').disabled=true;$('refresh').textContent='Refreshing…';try{if(!active||Date.now()>new Date(active.close_time||0).getTime()-1000)await discover();else{const d=await json(APIS[0]+'/markets/'+encodeURIComponent(active.ticker));active=d.market||d;try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable'}}
+async function tick(){$('refresh').disabled=true;$('refresh').textContent='Refreshing…';try{if(!active||Date.now()>new Date(active.close_time||0).getTime()-1000)await discover();else{const d=await json(API+'/markets/'+encodeURIComponent(active.ticker));active=d.market||d;try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable'}}
  render();$('dot').classList.add('live');$('connection').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString();
  }catch(e){$('dot').classList.remove('live');$('connection').textContent='DATA ISSUE';$('reason').textContent=e.message+' Signal set to WAIT until reliable data returns.';$('signal').textContent='WAIT';$('signal').className='wait';$('updated').innerHTML='<span class="error">'+e.message+'</span>'}finally{$('refresh').disabled=false;$('refresh').textContent='Refresh now'}}
 $('refresh').onclick=tick;tick();setInterval(tick,5000);setInterval(()=>{if(active)render()},1000);
