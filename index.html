@@ -21,11 +21,11 @@ main{max-width:780px;margin:auto;padding:18px 0 32px}.top{display:flex;justify-c
 <div class="foot">GRAPH is educational decision support, not financial advice or a trade recommendation. The signal analyzes recent YES contract movement and technical indicators; it does not predict settlement or guarantee outcomes. Data may be delayed or unavailable. Always check the market's official rules, strike, liquidity, spread and fees on Kalshi. GRAPH never places trades or accesses your account.</div>
 </main>
 <script>
-const APIS=['https://external-api.kalshi.com/trade-api/v2','https://api.elections.kalshi.com/trade-api/v2'];
+const APIS=['https://api.elections.kalshi.com/trade-api/v2','https://external-api.kalshi.com/trade-api/v2'];
 const $=id=>document.getElementById(id);let active=null,spot=null,history=[],deferred=null,lastMarketTicker='';
 const fmt=n=>Number.isFinite(n)?'$'+n.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
 const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
-async function json(url){let errors=[];for(const base of APIS){const target=url.startsWith('https://external-api.kalshi.com/trade-api/v2')?base+url.slice('https://external-api.kalshi.com/trade-api/v2'.length):url;try{const r=await fetch(target,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target).host+': '+(e.message||'network/CORS error'))}}throw Error('Kalshi API unavailable: '+errors.join(' | '))}
+async function json(url){const isKalshi=APIS.some(base=>url.startsWith(base));const urls=isKalshi?APIS.map(base=>{const path=url.slice(url.indexOf('/trade-api/v2')+'/trade-api/v2'.length);return base+path}):[url];let errors=[];for(const target of urls){try{const r=await fetch(target,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target).host+': '+(e.message||'network/CORS error'))}}throw Error((isKalshi?'Kalshi API unavailable: ':'Data feed unavailable: ')+errors.join(' | '))}
 async function fetchSpot(){
  const providers=[
   async()=>{const d=await json('https://api.coinbase.com/v2/prices/BTC-USD/spot');return Number(d.data.amount)},
