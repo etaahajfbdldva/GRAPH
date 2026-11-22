@@ -22,3 +22,6 @@ Open the deployed URL in Safari → Share → Add to Home Screen.
 - YES midpoint snapshots build the live session graph; EMA 9/21 and RSI are based on those observations.
 - HIGHER / LOWER are simple momentum heuristics, not probabilities or settlement predictions. If market data is unavailable or insufficient, the signal stays WAIT.
 - No trading, account access, API keys, or financial transactions.
+
+
+Cloudflare deployment trigger: this repository is connected to Workers Builds.
