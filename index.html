@@ -51,7 +51,7 @@ function render(){
  if(rsi!=null){checks++;if(rsi>=52&&rsi<=72){score++;notes.push('RSI bullish')}else if(rsi<=48&&rsi>=28){score--;notes.push('RSI bearish')}}
  const spreadC=spread==null?null:spread*100,goodSpread=spreadC!=null&&spreadC<=4,badSpread=spreadC!=null&&spreadC>8,goodVolume=volume>=20,yesEntry=Number.isFinite(ask)?ask:p,noEntry=noAsk;
  const ready=v.length>=30&&checks>=4;
- let sig='WAIT',direction='WAIT',entry='DON’T ENTER',zone='—',reason='Building fast signal history: '+v.length+' of 30 observations.',quality='BUILDING';
+ let sig='WAIT',direction='WAIT',entry='WAIT',zone='—',reason='Building fast signal history: '+v.length+' of 30 observations.',quality='BUILDING';
  if(ready){
   const up=score>=3,down=score<=-3,entryPrice=up?yesEntry:down?noEntry:null;
   if(badSpread){sig='DON’T ENTER';reason='Spread is too wide ('+spreadC.toFixed(1)+'¢). Wait for tighter pricing.'}
@@ -60,16 +60,16 @@ function render(){
   else if(up||down){
    direction=up?'YES':'NO';
    if(entryPrice!=null&&entryPrice>=0.08&&entryPrice<=0.92){
-    entry='ENTER';zone=entryPrice<=0.45?'BUY LOW':entryPrice>=0.55?'BUY HIGH':'MID PRICE';sig='ENTER '+direction;quality='STRONG · '+Math.abs(score)+'/'+checks;
-    reason=(up?'YES contract momentum is stronger. ':'NO contract momentum is stronger. ')+notes.join('; ')+'. Confirm the current ask price before entering.';
+    entry=entryPrice<=0.45?'BUY WHEN LOW':entryPrice>=0.55?'BUY WHEN HIGH':'WAIT FOR BETTER PRICE';zone=entryPrice<=0.45?'LOW PRICE':entryPrice>=0.55?'HIGH PRICE':'MID PRICE';sig='ENTER '+direction;quality='STRONG · '+Math.abs(score)+'/'+checks;
+    reason=(up?'YES contract momentum is stronger. ':'NO contract momentum is stronger. ')+notes.join('; ')+'. '+(entryPrice<=0.45?'The selected side is relatively cheap.':entryPrice>=0.55?'The selected side is expensive; only consider it if you accept the smaller payout.':'The selected side is mid-priced; wait for a better entry.')+' Check fees and the live ask before acting.';
    }else{sig='DON’T ENTER';reason='The selected side is near a price extreme. Avoid chasing.'}
   }else if(Math.abs(score)>=2){direction=score>0?'YES LEAN':'NO LEAN';quality='MODERATE · '+Math.abs(score)+'/'+checks;reason='Some indicators agree, but entry confirmation is missing. '+notes.join('; ')+'.'}
   else{quality='WEAK · '+Math.abs(score)+'/'+checks;reason='Momentum is mixed. No clean YES or NO entry.'}
  }
  $('signal').textContent=sig;$('signal').className=sig==='ENTER YES'?'higher':(sig==='ENTER NO'||sig==='DON’T ENTER')?'lower':'no-setup';
  $('direction').textContent=direction;$('direction').style.color=direction==='YES'?'#35d39a':direction==='NO'?'#ff555d':'#f4c96b';
- $('entryaction').textContent=entry;$('entryaction').style.color=entry==='ENTER'?'#35d39a':'#ff555d';
- $('pricezone').textContent=zone;$('pricezone').style.color=zone==='BUY LOW'?'#35d39a':zone==='BUY HIGH'?'#f4c96b':'#91a0b5';
+ $('entryaction').textContent=entry;$('entryaction').style.color=entry==='BUY WHEN LOW'?'#35d39a':entry==='BUY WHEN HIGH'?'#f4c96b':'#ff555d';
+ $('pricezone').textContent=zone;$('pricezone').style.color=zone==='LOW PRICE'?'#35d39a':zone==='HIGH PRICE'?'#f4c96b':'#91a0b5';
  $('rsi').textContent=quality;$('reason').textContent=reason+(rsi==null?'':' RSI '+rsi.toFixed(0)+'.');
  $('points').textContent=history.length+' fast samples';draw();
  const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time||0).getTime(),left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=close?String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0'):'—';
