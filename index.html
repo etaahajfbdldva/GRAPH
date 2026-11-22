@@ -28,8 +28,9 @@ const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
 async function json(url){const isKalshi=url.startsWith(API+'/');const urls=[url];let errors=[];for(const target of urls){try{const u=new URL(target,location.href);if(u.origin===location.origin&&u.pathname.startsWith('/api/'))u.searchParams.set('_graph_ts',String(Date.now()));const r=await fetch(u.toString(),{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}catch(e){errors.push(new URL(target,location.href).host+': '+(e.message||'network/CORS error'))}}throw Error((isKalshi?'Kalshi API unavailable: ':'Data feed unavailable: ')+errors.join(' | '))}
 async function fetchSpot(){
  const providers=[
-  async()=>{const d=await json('/api/spot');return Number(d.data.amount)},
-  async()=>{const d=await json('https://api.kraken.com/0/public/Ticker?pair=XBTUSD');const k=Object.keys(d.result||{})[0];return Number(d.result[k].c[0])}
+  async()=>{const d=await json('/api/spot');return Number(d?.data?.amount??d?.amount??d?.price)},
+  async()=>{const d=await json('https://api.kraken.com/0/public/Ticker?pair=XBTUSD');const k=Object.keys(d.result||{})[0];return Number(d.result?.[k]?.c?.[0])},
+  async()=>{const d=await json('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');return Number(d.price)}
  ];
  let errors=[];for(const get of providers){try{const p=await get();if(Number.isFinite(p)&&p>0)return p}catch(e){errors.push(e.message)}}
  throw Error('BTC spot feeds unavailable: '+errors.join(' | '));
