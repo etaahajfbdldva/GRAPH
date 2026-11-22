@@ -97,6 +97,64 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
     if (request.method !== "GET" && request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: cors });
+    if (url.pathname === "/api/position" && request.method === "GET") {
+      try {
+        const ticker = String(url.searchParams.get("ticker") || "");
+        if (!/^[A-Z0-9._-]{3,80}$/.test(ticker)) return Response.json({error:"Invalid ticker"},{status:400,headers:cors});
+        const [positions, marketData] = await Promise.all([
+          privateKalshiFetch(env,"GET","/portfolio/positions?ticker="+encodeURIComponent(ticker)+"&count_filter=position"),
+          privateKalshiFetch(env,"GET","/markets/"+encodeURIComponent(ticker))
+        ]);
+        const p=(positions.market_positions||[]).find(x=>x.ticker===ticker);
+        const qty=Number(p?.position_fp ?? p?.position ?? 0);
+        if (!p || !Number.isFinite(qty) || qty===0) return Response.json({position:null},{headers:cors});
+        const m=marketData.market||{};
+        const exitPrice=qty>0?Number(m.yes_bid_dollars ?? (m.yes_bid!=null?m.yes_bid/100:NaN)):Number(m.no_bid_dollars ?? (m.no_bid!=null?m.no_bid/100:NaN));
+        const contracts=Math.abs(qty), basis=Number(p.market_exposure_dollars ?? (Number(p.market_exposure||0)/100));
+        const fees=Number(p.fees_paid_dollars ?? (Number(p.fees_paid||0)/100));
+        if (!Number.isFinite(exitPrice) || exitPrice<=0 || exitPrice>=1 || !Number.isFinite(basis)) {
+          return Response.json({error:"A reliable exit bid or position cost basis is not available yet."},{status:409,headers:cors});
+        }
+        const estimatedValue=contracts*exitPrice;
+        const estimatedNet=estimatedValue-basis-fees;
+        const denominator=basis+fees;
+        return Response.json({position:{
+          ticker,side:qty>0?"YES":"NO",contracts,exit_bid_dollars:exitPrice,
+          cost_basis_dollars:basis+fees,estimated_exit_value_dollars:estimatedValue,
+          estimated_net_pnl_dollars:estimatedNet,
+          estimated_profit_percent:denominator>0?estimatedNet/denominator*100:0,
+          note:"Estimate uses the current bid and recorded fees; actual fills, fees and slippage may differ."
+        }},{headers:cors});
+      } catch(error) {
+        return Response.json({error:error.message||"Position lookup failed"},{status:error.status||502,headers:cors});
+      }
+    }
+    if (url.pathname === "/api/close-position" && request.method === "POST") {
+      try {
+        const input=await request.json(),ticker=String(input.ticker||"");
+        if (!/^[A-Z0-9._-]{3,80}$/.test(ticker)) return Response.json({error:"Invalid ticker"},{status:400,headers:cors});
+        const [positions,marketData]=await Promise.all([
+          privateKalshiFetch(env,"GET","/portfolio/positions?ticker="+encodeURIComponent(ticker)+"&count_filter=position"),
+          privateKalshiFetch(env,"GET","/markets/"+encodeURIComponent(ticker))
+        ]);
+        const p=(positions.market_positions||[]).find(x=>x.ticker===ticker);
+        const qty=Number(p?.position_fp ?? p?.position ?? 0);
+        if (!Number.isFinite(qty)||qty===0) return Response.json({error:"No open position to close."},{status:409,headers:cors});
+        const m=marketData.market||{},yesSide=qty>0;
+        const price=yesSide?Number(m.yes_bid_dollars ?? (m.yes_bid!=null?m.yes_bid/100:NaN)):1-Number(m.no_bid_dollars ?? (m.no_bid!=null?m.no_bid/100:NaN));
+        const status=String(m.status||"").toLowerCase();
+        if (!["open","active"].includes(status)) return Response.json({error:"Market is not open for trading."},{status:409,headers:cors});
+        if (!Number.isFinite(price)||price<=0||price>=1) return Response.json({error:"No valid executable bid is available to close this position."},{status:409,headers:cors});
+        const order=await privateKalshiFetch(env,"POST","/portfolio/events/orders",{
+          ticker,side:yesSide?"ask":"bid",count:Math.abs(qty).toFixed(2),price:price.toFixed(4),
+          time_in_force:"immediate_or_cancel",self_trade_prevention_type:"taker_at_cross",
+          reduce_only:true,client_order_id:crypto.randomUUID()
+        });
+        return Response.json({submitted:true,order,reduce_only:true},{headers:cors});
+      } catch(error) {
+        return Response.json({error:error.message||"Cash-out submission failed"},{status:error.status||502,headers:cors});
+      }
+    }
     if (url.pathname === "/api/orders" && request.method === "POST") {
       try {
         const input = await request.json();
