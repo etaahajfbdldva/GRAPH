@@ -4,8 +4,18 @@ const ETH_SPOT = "https://api.coinbase.com/v2/prices/ETH-USD/spot";
 
 
 function pemBytes(pem) {
-  const body = pem.replace(/-----BEGIN [^-]+-----/g, "").replace(/-----END [^-]+-----/g, "").replace(/[\t\n\r ]/g, "");
-  const raw = atob(body);
+  // Cloudflare secrets may contain either real newlines or the literal characters \\n.
+  let normalized = String(pem).replace(/^\\uFEFF/, "").trim();
+  normalized = normalized.replace(/^["']|["']$/g, "").replace(/\\\\r\\\\n|\\\\n|\\\\r/g, "\\n");
+  const body = normalized
+    .replace(/-----BEGIN [^-]+-----/g, "")
+    .replace(/-----END [^-]+-----/g, "")
+    .replace(/[\\t\\n\\r ]/g, "");
+  if (!body || !/^[A-Za-z0-9+/]*={0,2}$/.test(body) || body.length % 4 === 1) {
+    throw new Error("Private key format is invalid. Paste the complete original PEM key, including its BEGIN and END lines.");
+  }
+  const base64 = body.padEnd(Math.ceil(body.length / 4) * 4, "=");
+  const raw = atob(base64);
   return Uint8Array.from(raw, c => c.charCodeAt(0));
 }
 
