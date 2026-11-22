@@ -1,80 +1,65 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#090b10"><meta name="description" content="GRAPH — live Bitcoin 15-minute Kalshi market analysis.">
-<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
-<title>GRAPH — BTC 15-Minute Kalshi</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090b10">
+<title>GRAPH — Bitcoin</title>
 <style>
-:root{color-scheme:dark;--bg:#090b10;--panel:#121722;--line:#252e3c;--muted:#91a0b5;--red:#ff555d;--green:#35d39a;--yellow:#f4c96b}
+:root{color-scheme:dark;--bg:#090b10;--panel:#121722;--line:#252e3c;--muted:#91a0b5;--green:#35d39a;--red:#ff555d}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#202b3d 0,transparent 48%),var(--bg);color:#f3f6fb;font:15px system-ui,-apple-system,Segoe UI,sans-serif;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
-main{max-width:780px;margin:auto;padding:18px 0 32px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.brand{font-size:25px;font-weight:900;letter-spacing:3px}.brand span{color:var(--red)}.sub{font-size:11px;color:var(--muted);letter-spacing:1.2px}.pill{border:1px solid var(--line);border-radius:30px;padding:7px 10px;font-size:11px;color:var(--muted)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--yellow);margin-right:6px}.dot.live{background:var(--green);box-shadow:0 0 9px var(--green)}
-.panel{background:linear-gradient(145deg,#151d2a,#10151e);border:1px solid var(--line);border-radius:18px;padding:17px;margin:12px 0;box-shadow:0 12px 35px #0003}.label{font-size:11px;color:var(--muted);letter-spacing:1.3px;text-transform:uppercase}.hero{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.price{font-size:32px;font-weight:800;letter-spacing:-1px;margin-top:5px}.timer{text-align:right;font-size:25px;font-weight:750;font-variant-numeric:tabular-nums}.marketname{color:#dce4ef;font-size:14px;margin-top:10px;line-height:1.35}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.metric{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}.metric b{display:block;font-size:19px;margin-top:6px;overflow:hidden;text-overflow:ellipsis}.signal{display:flex;justify-content:space-between;align-items:center;gap:12px}.signal strong{font-size:27px;letter-spacing:1px}.higher{color:var(--green)}.lower{color:var(--red)}.no-setup{color:var(--yellow)}.reason{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px}canvas{width:100%;height:220px;display:block}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{background:#1d2939;color:#eef4ff;border:1px solid #34445b;border-radius:11px;padding:11px 14px;font-weight:650;font-size:13px}.btn.primary{background:#b92f3a;border-color:#b92f3a}.foot{font-size:11px;color:#748196;line-height:1.55;padding:8px 3px}.error{color:#ff9298}.small{font-size:11px;color:var(--muted)}@media(max-width:430px){.price{font-size:28px}.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.metric{padding:10px 8px}.metric b{font-size:16px}.timer{font-size:22px}}
-</style></head>
-<body><main>
-<header class="top"><div><div class="brand">GR<span>A</span>PH</div><div class="sub">BTC · 15-MINUTE KALSHI · LIVE</div></div><div class="pill"><i id="dot" class="dot"></i><span id="connection">CONNECTING</span></div></header>
-<section class="panel"><div class="hero"><div><div class="label">Selected market · YES price</div><div id="spot" class="price">—</div><div id="spotchange" class="small">Select a Kalshi market below</div></div><div><div class="label" style="text-align:right">Market closes in</div><div id="timer" class="timer">--:--</div></div></div><div id="marketname" class="marketname">Loading BTC 15-minute markets…</div></section><section class="panel"><div class="label">Find a BTC 15-minute market</div><input id="marketsearch" type="search" placeholder="Search BTC 15-minute markets" style="width:100%;margin:9px 0;padding:12px;border-radius:10px;border:1px solid #34445b;background:#0d121a;color:#f3f6fb;font:inherit"><select id="marketselect" aria-label="Choose a Kalshi market" style="width:100%;padding:12px;border-radius:10px;border:1px solid #34445b;background:#0d121a;color:#f3f6fb;font:inherit"><option>Loading markets…</option></select><div class="actions" style="margin-top:10px"><button class="btn" id="loadmore">Load more markets</button></div><div class="small" id="marketcount" style="margin-top:8px">Loading…</div></section>
-<section class="panel"><div class="label">Market contract · YES side</div><div class="grid" style="margin-top:12px"><div class="metric"><span class="label">YES bid</span><b id="bid">—</b></div><div class="metric"><span class="label">YES ask</span><b id="ask">—</b></div><div class="metric"><span class="label">Midpoint</span><b id="mid">—</b></div></div><div class="small" id="marketmeta" style="margin-top:12px">Waiting for market data…</div></section>
-<section class="panel"><div class="signal"><div><div class="label">BTC PRO · TRADE DECISION</div><strong id="signal" class="no-setup">WAIT</strong></div><div style="text-align:right"><div class="label">Signal strength</div><strong id="rsi">—</strong></div></div><div class="grid" style="margin-top:13px"><div class="metric"><span class="label">Direction</span><b id="direction">—</b></div><div class="metric"><span class="label">Entry action</span><b id="entryaction">DON’T ENTER</b></div><div class="metric"><span class="label">Price zone</span><b id="pricezone">—</b></div></div><div class="reason" id="reason">Collecting fast live price observations. No signal is a guarantee.</div><div class="grid" style="margin-top:13px"><div class="metric"><span class="label">EMA 9</span><b id="ema9">—</b></div><div class="metric"><span class="label">EMA 21</span><b id="ema21">—</b></div><div class="metric"><span class="label">Spread</span><b id="spread">—</b></div></div></section>
-<section class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="label">Live market price candles</div><div class="small">Selected market · 1-minute candles · updates every 2 seconds</div></div><div class="pill" id="points">0 points</div></div><canvas id="chart" width="900" height="280" aria-label="YES price candlestick chart"></canvas></section>
-<section class="panel"><div class="actions"><button class="btn primary" id="refresh">Refresh now</button><button class="btn" id="install" hidden>Install GRAPH</button></div><div class="small" id="updated" style="margin-top:12px">Not updated yet</div></section>
-<div class="foot">GRAPH is configured for Kalshi BTC 15-minute contracts and scores YES-contract momentum, EMA trend, RSI, spread and available liquidity to flag stronger or weaker setups. The score is a technical checklist, not a win probability or guarantee. It describes YES contract price movement, not whether the event itself will happen. Verify rules, liquidity and fees. GRAPH never places trades.</div>
+main{max-width:900px;margin:auto;padding:22px 0 30px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.brand{font-size:25px;font-weight:900;letter-spacing:3px}.brand span{color:var(--green)}.sub,.muted{font-size:11px;color:var(--muted);letter-spacing:1px}.pill{border:1px solid var(--line);border-radius:30px;padding:7px 10px;font-size:11px;color:var(--muted)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#f4c96b;margin-right:6px}.dot.live{background:var(--green);box-shadow:0 0 9px var(--green)}.panel{background:linear-gradient(145deg,#151d2a,#10151e);border:1px solid var(--line);border-radius:18px;padding:17px;margin:12px 0;box-shadow:0 12px 35px #0003}.price{font-size:clamp(34px,8vw,54px);font-weight:850;letter-spacing:-2px;margin:8px 0}.change{font-size:14px;font-weight:700}.charthead{display:flex;justify-content:space-between;align-items:center;gap:10px}.tabs{display:flex;gap:7px;margin:15px 0}.tab{background:#0d121a;border:1px solid #34445b;color:#cbd5e1;padding:8px 13px;border-radius:9px;font-weight:650}.tab.active{background:#244235;border-color:#35d39a;color:#8df0c7}canvas{width:100%;height:340px;display:block}.status{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}.foot{font-size:11px;color:#748196;line-height:1.5;margin:16px 3px}
+</style>
+</head>
+<body>
+<main>
+<header class="top"><div><div class="brand">GR<span>A</span>PH</div><div class="sub">BITCOIN · BTC/USD</div></div><div class="pill"><i id="dot" class="dot"></i><span id="connection">CONNECTING</span></div></header>
+<section class="panel">
+ <div class="muted">BITCOIN LIVE PRICE</div>
+ <div id="price" class="price">Loading BTC…</div>
+ <div><span id="change" class="change">Getting market data</span></div>
+</section>
+<section class="panel">
+ <div class="charthead"><div><div style="font-weight:750;font-size:17px">BTC price chart</div><div class="muted">Live Bitcoin / US Dollar</div></div><div class="pill" id="lastupdate">Waiting</div></div>
+ <div class="tabs"><button class="tab active" data-period="1">1M</button><button class="tab" data-period="5">5M</button><button class="tab" data-period="15">15M</button><button class="tab" data-period="60">1H</button></div>
+ <canvas id="chart" width="1000" height="520" aria-label="Bitcoin price candlestick chart"></canvas>
+ <div id="status" class="status">Connecting to live BTC price data…</div>
+</section>
+<div class="foot">Live BTC/USD market chart. Price data is for information only and is not a trading recommendation.</div>
 </main>
 <script>
-const API='/api/kalshi', $=id=>document.getElementById(id);
-let active=null,history=[],markets=[],cursor=null,loading=false,busy=false,poll=null,deferred=null;
-const cents=n=>Number.isFinite(n)?(n*100).toFixed(1)+'¢':'—';
-async function json(path){const u=new URL(path,location.href);u.searchParams.set('_graph_ts',Date.now());const r=await fetch(u,{cache:'no-store',signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('HTTP '+r.status);return r.json()}
-function price(m){const b=Number(m.yes_bid_dollars??(m.yes_bid!=null?m.yes_bid/100:NaN)),a=Number(m.yes_ask_dollars??(m.yes_ask!=null?m.yes_ask/100:NaN)),l=Number(m.last_price_dollars??(m.last_price!=null?m.last_price/100:NaN));if(b>0&&a>0)return(b+a)/2;if(l>0)return l;if(b>0)return b;return null}
-function filtered(){const q=$('marketsearch').value.toLowerCase().trim();return markets.filter(m=>(m.title||m.subtitle||'').toLowerCase().includes(q)||String(m.ticker).toLowerCase().includes(q))}
-function options(){const list=filtered(),sel=$('marketselect'),old=active?.ticker;sel.innerHTML='';list.forEach(m=>{const o=document.createElement('option');o.value=m.ticker;o.textContent=(m.title||m.subtitle||m.ticker)+' · '+m.ticker;sel.append(o)});if(old&&list.some(m=>m.ticker===old))sel.value=old;else if(!old&&list.length)sel.value=list[0].ticker;$('marketcount').textContent=markets.length+' BTC 15-minute markets loaded'+(cursor?' · more available':'')}
-async function loadMarkets(more=false){if(loading)return;loading=true;$('loadmore').disabled=true;$('loadmore').textContent='Loading…';try{const q=new URLSearchParams({series_ticker:'KXBTC15M',limit:'200'});if(more&&cursor)q.set('cursor',cursor);const d=await json(API+'/markets?'+q);const now=Date.now();const btcMarkets=(d.markets||[]).filter(m=>{const s=String(m.status||'').toLowerCase();const close=Date.parse(m.close_time||m.expiration_time||m.latest_expiration_time||'');return (!s||['open','active','initialized'].includes(s))&&(!Number.isFinite(close)||close>now)}).sort((a,b)=>Date.parse(a.close_time||a.expiration_time||a.latest_expiration_time||'2999-01-01')-Date.parse(b.close_time||b.expiration_time||b.latest_expiration_time||'2999-01-01'));const seen=new Set(markets.map(m=>m.ticker));btcMarkets.forEach(m=>{if(m.ticker&&!seen.has(m.ticker)){markets.push(m);seen.add(m.ticker)}});cursor=d.cursor||null;options();if(!active&&markets.length)await selectMarket($('marketselect').value);if(!markets.length)throw Error('Kalshi returned no open markets.')}catch(e){$('marketcount').textContent=e.message;$('updated').textContent=e.message;$('connection').textContent='DATA ISSUE'}finally{loading=false;$('loadmore').disabled=!cursor;$('loadmore').textContent=cursor?'Load more markets':'All markets loaded'}}
-async function selectMarket(t){const m=markets.find(x=>x.ticker===t);if(!m)return;active=m;history=[];$('signal').textContent='NO SETUP';$('reason').textContent='Loading selected market…';try{const d=await json(API+'/markets/'+encodeURIComponent(t));active=d.market||d;render()}catch(e){$('reason').textContent='Market data error: '+e.message}}
-function ema(a,p){if(!a.length)return null;const k=2/(p+1);return a.reduce((v,x,i)=>i?x*k+v*(1-k):x,a[0])}
-function draw(){const c=$('chart'),x=c.getContext('2d'),w=c.width,h=c.height;x.clearRect(0,0,w,h);x.strokeStyle='#283344';for(let i=0;i<5;i++){const y=15+i*(h-35)/4;x.beginPath();x.moveTo(45,y);x.lineTo(w-10,y);x.stroke()}if(!history.length){x.fillStyle='#91a0b5';x.font='18px system-ui';x.fillText('WAITING FOR LIVE MARKET PRICE…',65,Math.round(h/2));x.font='12px system-ui';x.fillText('Choose an open BTC 15-minute market above',65,Math.round(h/2)+24);return}const map=new Map();history.forEach(v=>{const k=Math.floor(v.t/60000);let b=map.get(k);if(!b)map.set(k,{o:v.p,h:v.p,l:v.p,c:v.p});else{b.h=Math.max(b.h,v.p);b.l=Math.min(b.l,v.p);b.c=v.p}});const bars=[...map.values()],all=bars.flatMap(b=>[b.h,b.l]);let lo=Math.min(...all),hi=Math.max(...all),pad=Math.max((hi-lo)*.12,.005);lo=Math.max(0,lo-pad);hi+=pad;if(hi-lo<.01){lo=Math.max(0,lo-.01);hi+=.01}const top=15,bottom=h-20,ph=bottom-top,step=(w-65)/Math.max(1,bars.length),bw=Math.max(5,Math.min(22,step*.58));bars.forEach((b,i)=>{const px=48+i*step+step/2,y=v=>top+(hi-v)/(hi-lo)*ph,color=b.c>=b.o?'#35d39a':'#ff555d';x.strokeStyle=color;x.fillStyle=color;x.lineWidth=2;x.beginPath();x.moveTo(px,y(b.h));x.lineTo(px,y(b.l));x.stroke();const yo=y(b.o),yc=y(b.c);x.fillRect(px-bw/2,Math.min(yo,yc),bw,Math.max(2,Math.abs(yc-yo)))});x.fillStyle='#91a0b5';x.font='16px system-ui';x.fillText(cents(hi),4,24);x.fillText(cents(lo),4,h-10)}
-function render(){
- if(!active)return;
- const bid=Number(active.yes_bid_dollars??(active.yes_bid!=null?active.yes_bid/100:NaN)),ask=Number(active.yes_ask_dollars??(active.yes_ask!=null?active.yes_ask/100:NaN)),p=price(active),spread=bid>0&&ask>0?ask-bid:null;
- const noAsk=Number.isFinite(bid)?1-bid:null;
- $('spot').textContent=cents(p);$('spotchange').textContent='YES contract price · '+active.ticker;$('bid').textContent=cents(Number.isFinite(bid)?bid:null);$('ask').textContent=cents(Number.isFinite(ask)?ask:null);$('mid').textContent=cents(p);$('spread').textContent=spread!=null?(spread*100).toFixed(1)+'¢':'—';
- $('marketname').textContent=(active.title||active.subtitle||active.ticker)+' · '+active.ticker;
- const volume=Number(active.volume_24h_fp??active.volume_24h??active.volume_fp??0);$('marketmeta').textContent='Status: '+(active.status||'unknown')+' · 24h volume: '+(Number.isFinite(volume)?volume.toLocaleString():'—');
- if(p!=null){const now=Date.now();if(!history.length||now-history[history.length-1].t>=1800)history.push({t:now,p});history=history.filter(z=>now-z.t<=360000).slice(-360)}
- const v=history.map(z=>z.p),e9=ema(v.slice(-9),9),e21=ema(v.slice(-21),21);$('ema9').textContent=cents(e9);$('ema21').textContent=cents(e21);
- let gains=0,losses=0;for(let i=Math.max(1,v.length-14);i<v.length;i++){const d=v[i]-v[i-1];if(d>0)gains+=d;else losses-=d}const rsi=v.length>=15?(losses===0?100:100-100/(1+gains/losses)):null;
- const m5=v.length>=4?v.at(-1)-v.at(-4):null,m15=v.length>=8?v.at(-1)-v.at(-8):null,m30=v.length>=15?v.at(-1)-v.at(-15):null;
- let score=0,checks=0,notes=[];
- if(e9!=null&&e21!=null&&v.length>=21){checks++;if(e9>e21){score++;notes.push('EMA trend up')}else if(e9<e21){score--;notes.push('EMA trend down')}}
- if(m5!=null){checks++;if(m5>0.002){score++;notes.push('5-second momentum up')}else if(m5< -0.002){score--;notes.push('5-second momentum down')}}
- if(m15!=null){checks++;if(m15>0.004){score++;notes.push('15-second momentum up')}else if(m15< -0.004){score--;notes.push('15-second momentum down')}}
- if(m30!=null){checks++;if(m30>0.006){score++;notes.push('30-second trend up')}else if(m30< -0.006){score--;notes.push('30-second trend down')}}
- if(rsi!=null){checks++;if(rsi>=52&&rsi<=72){score++;notes.push('RSI bullish')}else if(rsi<=48&&rsi>=28){score--;notes.push('RSI bearish')}}
- const spreadC=spread==null?null:spread*100,goodSpread=spreadC!=null&&spreadC<=4,badSpread=spreadC!=null&&spreadC>8,goodVolume=volume>=20,yesEntry=Number.isFinite(ask)?ask:p,noEntry=noAsk;
- const ready=v.length>=30&&checks>=4;
- let sig='WAIT',direction='WAIT',entry='WAIT',zone='—',reason='Building fast signal history: '+v.length+' of 30 observations.',quality='BUILDING';
- if(ready){
-  const up=score>=3,down=score<=-3,entryPrice=up?yesEntry:down?noEntry:null;
-  if(badSpread){sig='DON’T ENTER';reason='Spread is too wide ('+spreadC.toFixed(1)+'¢). Wait for tighter pricing.'}
-  else if(!goodSpread){sig='DON’T ENTER';reason='Live bid/ask spread is unavailable or too wide.'}
-  else if(!goodVolume){sig='DON’T ENTER';reason='Reported market volume is too low for this entry filter.'}
-  else if(up||down){
-   direction=up?'YES':'NO';
-   if(entryPrice!=null&&entryPrice>=0.08&&entryPrice<=0.92){
-    entry=entryPrice<=0.45?'BUY WHEN LOW':entryPrice>=0.55?'BUY WHEN HIGH':'WAIT FOR BETTER PRICE';zone=entryPrice<=0.45?'LOW PRICE':entryPrice>=0.55?'HIGH PRICE':'MID PRICE';sig='ENTER '+direction;quality='STRONG · '+Math.abs(score)+'/'+checks;
-    reason=(up?'YES contract momentum is stronger. ':'NO contract momentum is stronger. ')+notes.join('; ')+'. '+(entryPrice<=0.45?'The selected side is relatively cheap.':entryPrice>=0.55?'The selected side is expensive; only consider it if you accept the smaller payout.':'The selected side is mid-priced; wait for a better entry.')+' Check fees and the live ask before acting.';
-   }else{sig='DON’T ENTER';reason='The selected side is near a price extreme. Avoid chasing.'}
-  }else if(Math.abs(score)>=2){direction=score>0?'YES LEAN':'NO LEAN';quality='MODERATE · '+Math.abs(score)+'/'+checks;reason='Some indicators agree, but entry confirmation is missing. '+notes.join('; ')+'.'}
-  else{quality='WEAK · '+Math.abs(score)+'/'+checks;reason='Momentum is mixed. No clean YES or NO entry.'}
- }
- $('signal').textContent=sig;$('signal').className=sig==='ENTER YES'?'higher':(sig==='ENTER NO'||sig==='DON’T ENTER')?'lower':'no-setup';
- $('direction').textContent=direction;$('direction').style.color=direction==='YES'?'#35d39a':direction==='NO'?'#ff555d':'#f4c96b';
- $('entryaction').textContent=entry;$('entryaction').style.color=entry==='BUY WHEN LOW'?'#35d39a':entry==='BUY WHEN HIGH'?'#f4c96b':'#ff555d';
- $('pricezone').textContent=zone;$('pricezone').style.color=zone==='LOW PRICE'?'#35d39a':zone==='HIGH PRICE'?'#f4c96b':'#91a0b5';
- $('rsi').textContent=quality;$('reason').textContent=reason+(rsi==null?'':' RSI '+rsi.toFixed(0)+'.');
- $('points').textContent=history.length+' fast samples';draw();
- const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time||0).getTime(),left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=close?String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0'):'—';
+const $=id=>document.getElementById(id);
+let candles=[],period=1,loading=false,lastPrice=null;
+const fmt=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+async function get(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('Price feed returned HTTP '+r.status);return r.json()}
+function draw(){
+ const c=$('chart'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);
+ const left=78,right=18,top=22,bottom=h-35,pw=w-left-right,ph=bottom-top;
+ ctx.strokeStyle='#283344';ctx.lineWidth=1;ctx.fillStyle='#91a0b5';ctx.font='16px system-ui';
+ if(!candles.length){for(let i=0;i<5;i++){let y=top+i*ph/4;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke()}ctx.fillText('WAITING FOR BTC PRICE DATA…',left+18,h/2);return}
+ const lows=candles.map(x=>x[3]),highs=candles.map(x=>x[2]);let lo=Math.min(...lows),hi=Math.max(...highs),pad=Math.max((hi-lo)*.12,1);lo-=pad;hi+=pad;
+ const y=v=>top+(hi-v)/(hi-lo)*ph,x=i=>left+(i+.5)*pw/candles.length,step=pw/candles.length,bw=Math.max(2,Math.min(13,step*.62));
+ for(let i=0;i<5;i++){let yy=top+i*ph/4,val=hi-i*(hi-lo)/4;ctx.beginPath();ctx.moveTo(left,yy);ctx.lineTo(w-right,yy);ctx.stroke();ctx.fillText('$'+val.toLocaleString('en-US',{maximumFractionDigits:0}),4,yy+5)}
+ candles.forEach((b,i)=>{const [t,o,high,low,close]=b,up=close>=o;ctx.strokeStyle=up?'#35d39a':'#ff555d';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=2;let xx=x(i),yo=y(o),yc=y(close);ctx.beginPath();ctx.moveTo(xx,y(high));ctx.lineTo(xx,y(low));ctx.stroke();ctx.fillRect(xx-bw/2,Math.min(yo,yc),bw,Math.max(2,Math.abs(yc-yo)))});
+ const latest=candles[candles.length-1][4];ctx.fillStyle='#35d39a';ctx.font='bold 17px system-ui';ctx.fillText(fmt(latest),left+5,top+18);
 }
-async function tick(){if(busy)return;busy=true;$('refresh').disabled=true;$('refresh').textContent='Refreshing…';try{if(active){const d=await json(API+'/markets/'+encodeURIComponent(active.ticker));active=d.market||d;render()}$('dot').classList.add('live');$('connection').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString()}catch(e){$('dot').classList.remove('live');$('connection').textContent='DATA ISSUE';$('reason').textContent=e.message;$('updated').textContent=e.message;$('signal').textContent='NO SETUP'}finally{$('refresh').disabled=false;$('refresh').textContent='Refresh now';busy=false}}
-function schedule(){clearTimeout(poll);if(!document.hidden)poll=setTimeout(async()=>{await tick();schedule()},2000)}
-$('marketsearch').oninput=options;$('marketselect').onchange=e=>selectMarket(e.target.value);$('loadmore').onclick=()=>loadMarkets(true);$('refresh').onclick=async()=>{await tick();schedule()};document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick().then(schedule)}else clearTimeout(poll)});loadMarkets().then(()=>{tick();schedule()});setInterval(()=>{if(active){const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time||0).getTime(),left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=close?String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0'):'—'}},1000);window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('install').hidden=false});$('install').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;$('install').hidden=true}};if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-</script></body></html>
+async function refresh(){
+ if(loading)return;loading=true;
+ try{
+  const [ticker,raw]=await Promise.all([
+   get('https://api.exchange.coinbase.com/products/BTC-USD/ticker'),
+   get('https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity='+period*60)
+  ]);
+  const p=Number(ticker.price),open=Number(ticker.open_24h||0),pct=open?(p-open)/open*100:0;
+  $('price').textContent=fmt(p);$('change').textContent=(pct>=0?'+':'')+pct.toFixed(2)+'% today';$('change').style.color=pct>=0?'#35d39a':'#ff555d';
+  candles=raw.slice().reverse().map(a=>[a[0]*1000,a[3],a[2],a[1],a[4]]).filter(a=>a.every(Number.isFinite));
+  if(!candles.length)throw Error('BTC candles have not loaded yet.');
+  $('dot').classList.add('live');$('connection').textContent='LIVE';$('lastupdate').textContent=new Date().toLocaleTimeString();$('status').textContent='BTC/USD · Coinbase market data · '+candles.length+' candles · refreshes automatically';draw();lastPrice=p;
+ }catch(e){$('dot').classList.remove('live');$('connection').textContent='DATA ISSUE';$('status').textContent='Could not load live BTC chart: '+e.message+' — tap refresh by reloading the page.';draw()}
+ finally{loading=false}
+}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');period=Number(b.dataset.period);refresh()}));
+refresh();setInterval(refresh,10000);
+</script>
+</body>
+</html>
