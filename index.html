@@ -35,11 +35,8 @@ async function fetchSpot(){
  throw Error('BTC spot feeds unavailable: '+errors.join(' | '));
 }
 async function discover(){
- const [md,bt]=await Promise.all([
-  json(APIS[0]+'/markets?series_ticker=KXBTC15M&status=open&limit=200'),
-  fetchSpot()
- ]);
- spot=bt;$('spot').textContent=fmt(spot);
+ const md=await json(APIS[0]+'/markets?series_ticker=KXBTC15M&status=open&limit=200');
+ try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable';}
  const now=Date.now();
  let markets=(md.markets||[]).filter(m=>String(m.status||'').toLowerCase()==='open'&&new Date(m.close_time||m.expiration_time||0).getTime()>now);
  markets.sort((a,b)=>new Date(a.close_time||a.expiration_time)-new Date(b.close_time||b.expiration_time));
@@ -73,7 +70,7 @@ function render(){
  const vals=history.map(x=>x.p),a=indicators(vals);$('signal').textContent=a.signal;$('signal').className=a.signal.toLowerCase();$('reason').textContent=a.reason;$('rsi').textContent=a.rsi==null?'—':a.rsi.toFixed(1);$('ema9').textContent=cents(a.e9);$('ema21').textContent=cents(a.e21);$('points').textContent=history.length+' points';draw();
  const close=new Date(active.close_time||active.expiration_time||active.latest_expiration_time).getTime();const left=Math.max(0,Math.floor((close-Date.now())/1000));$('timer').textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
 }
-async function tick(){try{if(!active||Date.now()>new Date(active.close_time||0).getTime()-1000)await discover();else{const [d,b]=await Promise.all([json(APIS[0]+'/markets/'+encodeURIComponent(active.ticker)),fetchSpot()]);active=d.market||d;spot=b;$('spot').textContent=fmt(spot)}
+async function tick(){try{if(!active||Date.now()>new Date(active.close_time||0).getTime()-1000)await discover();else{const d=await json(APIS[0]+'/markets/'+encodeURIComponent(active.ticker));active=d.market||d;try{spot=await fetchSpot();$('spot').textContent=fmt(spot)}catch(e){spot=null;$('spot').textContent='—';$('spotchange').textContent='BTC spot feed unavailable'}}
  render();$('dot').classList.add('live');$('connection').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString();
  }catch(e){$('dot').classList.remove('live');$('connection').textContent='DATA ISSUE';$('reason').textContent=e.message+' Signal set to WAIT until reliable data returns.';$('signal').textContent='WAIT';$('signal').className='wait';$('updated').innerHTML='<span class="error">'+e.message+'</span>'}}
 $('refresh').onclick=tick;tick();setInterval(tick,5000);setInterval(()=>{if(active)render()},1000);
