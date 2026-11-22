@@ -18,6 +18,18 @@ main{max-width:780px;margin:auto;padding:18px 0 32px}.top{display:flex;justify-c
 <section class="panel"><div class="signal"><div><div class="label">BTC PRO · TRADE DECISION</div><strong id="signal" class="no-setup">WAIT</strong></div><div style="text-align:right"><div class="label">Signal strength</div><strong id="rsi">—</strong></div></div><div class="grid" style="margin-top:13px"><div class="metric"><span class="label">Direction</span><b id="direction">—</b></div><div class="metric"><span class="label">Entry action</span><b id="entryaction">DON’T ENTER</b></div><div class="metric"><span class="label">Price zone</span><b id="pricezone">—</b></div></div><div class="reason" id="reason">Collecting fast live price observations. No signal is a guarantee.</div><div class="grid" style="margin-top:13px"><div class="metric"><span class="label">EMA 9</span><b id="ema9">—</b></div><div class="metric"><span class="label">EMA 21</span><b id="ema21">—</b></div><div class="metric"><span class="label">Spread</span><b id="spread">—</b></div></div></section>
 <section class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="label">Live market price candles</div><div class="small">Selected market · 1-minute candles · updates every 2 seconds</div></div><div class="pill" id="points">0 points</div></div><canvas id="chart" width="900" height="280" aria-label="YES price candlestick chart"></canvas></section>
 <section class="panel"><div class="label">SECURE KALSHI ACCOUNT</div><div class="signal" style="margin-top:10px"><div><strong id="accountstatus" style="font-size:18px">NOT CONNECTED</strong><div class="small" id="accountenv">API credentials are stored in Cloudflare Secrets</div></div><div style="text-align:right"><div class="label">Available balance</div><strong id="accountbalance" style="font-size:20px">—</strong></div></div><div class="actions" style="margin-top:14px"><button class="btn" id="connectaccount">Test secure connection</button></div><div class="reason" id="accountnote">This checks your private Kalshi API connection without placing any trades. Never paste your private key into this page.</div></section>
+<section class="panel" id="tradingSettings">
+<div class="label">TRADING SETTINGS</div>
+<div class="reason">Adjust your preferred limits. Settings are saved on this device. Live order placement is not enabled yet.</div>
+<div class="grid" style="margin-top:13px">
+<label class="metric"><span class="label">Max per trade ($)</span><input id="maxTrade" type="number" min="1" max="10" step="1" value="5" style="width:100%;margin-top:8px;background:#090f18;color:#fff;border:1px solid #34445b;border-radius:8px;padding:10px"></label>
+<label class="metric"><span class="label">Daily loss cap ($)</span><input id="dailyLoss" type="number" min="1" max="20" step="1" value="5" style="width:100%;margin-top:8px;background:#090f18;color:#fff;border:1px solid #34445b;border-radius:8px;padding:10px"></label>
+<label class="metric"><span class="label">Max open trades</span><select id="maxOpen" style="width:100%;margin-top:8px;background:#090f18;color:#fff;border:1px solid #34445b;border-radius:8px;padding:10px"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+</div>
+<div class="signal" style="margin-top:14px"><div><strong style="font-size:16px">Automatic trading</strong><div class="small">Starts OFF for safety</div></div><label style="display:flex;align-items:center;gap:8px"><input id="autoTrading" type="checkbox" style="width:22px;height:22px"> <span id="autoLabel">OFF</span></label></div>
+<div class="small" id="settingsStatus" style="margin-top:10px">Settings not connected to live order execution.</div>
+<button class="btn" id="saveSettings" style="margin-top:12px">Save settings</button>
+</section>
 <section class="panel"><div class="actions"><button class="btn primary" id="refresh">Refresh now</button><button class="btn" id="install" hidden>Install GRAPH</button></div><div class="small" id="updated" style="margin-top:12px">Not updated yet</div></section>
 <div class="foot">GRAPH is configured for Kalshi BTC 15-minute contracts and scores YES-contract momentum, EMA trend, RSI, spread and available liquidity to flag stronger or weaker setups. The score is a technical checklist, not a win probability or guarantee. It describes YES contract price movement, not whether the event itself will happen. Verify rules, liquidity and fees. GRAPH never places trades.</div>
 </main>
@@ -124,6 +136,30 @@ setInterval(()=>{if(active){const close=new Date(active.close_time||active.expir
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('install').hidden=false});
 $('install').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;$('install').hidden=true}};
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+
+const settingDefaults={maxTrade:5,dailyLoss:5,maxOpen:1,autoTrading:false};
+function loadTradingSettings(){
+ let saved={};try{saved=JSON.parse(localStorage.getItem('graphTradingSettings')||'{}')}catch{}
+ const v={...settingDefaults,...saved};
+ $('maxTrade').value=Math.max(1,Math.min(10,Number(v.maxTrade)||5));
+ $('dailyLoss').value=Math.max(1,Math.min(20,Number(v.dailyLoss)||5));
+ $('maxOpen').value=['1','2','3'].includes(String(v.maxOpen))?String(v.maxOpen):'1';
+ $('autoTrading').checked=false;
+ $('autoLabel').textContent='OFF';
+ $('settingsStatus').textContent='Saved preferences load here. Auto trading remains OFF until server-side trading controls are implemented and separately activated.';
+}
+$('saveSettings').onclick=()=>{
+ const maxTrade=Math.max(1,Math.min(10,Number($('maxTrade').value)||5));
+ const dailyLoss=Math.max(1,Math.min(20,Number($('dailyLoss').value)||5));
+ const maxOpen=Math.max(1,Math.min(3,Number($('maxOpen').value)||1));
+ const settings={maxTrade,dailyLoss,maxOpen,autoTrading:false};
+ localStorage.setItem('graphTradingSettings',JSON.stringify(settings));
+ $('maxTrade').value=maxTrade;$('dailyLoss').value=dailyLoss;$('maxOpen').value=maxOpen;
+ $('autoTrading').checked=false;$('autoLabel').textContent='OFF';
+ $('settingsStatus').textContent='Preferences saved on this device. Live trading is still OFF and no orders can be placed.';
+};
+$('autoTrading').addEventListener('change',()=>{$('autoTrading').checked=false;$('autoLabel').textContent='OFF';$('settingsStatus').textContent='Auto trading cannot be enabled yet; live order execution and server-side risk checks are not installed.'});
+loadTradingSettings();
 </script></body></html>+(cents/100).toFixed(2):'Connected';
   $('accountnote').textContent='Private account authentication succeeded. This test did not place an order.';
  }catch(e){
