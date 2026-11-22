@@ -42,9 +42,9 @@ async function kalshiAuth(env, method, apiPath) {
 }
 
 function kalshiTradeBase(env) {
-  return env.KALSHI_ENV === "demo"
-    ? "https://demo-api.kalshi.co/trade-api/v2"
-    : "https://api.elections.kalshi.com/trade-api/v2";
+  return env.KALSHI_ENV === "production"
+    ? "https://api.elections.kalshi.com/trade-api/v2"
+    : "https://demo-api.kalshi.co/trade-api/v2";
 }
 
 async function privateKalshiFetch(env, method, path, body) {
@@ -81,7 +81,7 @@ export default {
       let upstream;
       if (url.pathname === "/api/account/test" && request.method === "GET") {
         const data = await privateKalshiFetch(env, "GET", "/portfolio/balance");
-        return Response.json({ connected: true, environment: env.KALSHI_ENV === "demo" ? "demo" : "production", balance: data.balance ?? null, portfolio: data }, { headers: cors });
+        return Response.json({ connected: true, environment: env.KALSHI_ENV === "production" ? "production" : "demo", balance: data.balance ?? null, portfolio: data }, { headers: cors });
       } else if (url.pathname === "/api/account/balance" && request.method === "GET") {
         const data = await privateKalshiFetch(env, "GET", "/portfolio/balance");
         return Response.json(data, { headers: cors });
