@@ -1,19 +1,24 @@
 # GRAPH — Bitcoin 15-minute market desk
 
-A mobile-first installable web app for monitoring the active Kalshi Bitcoin 15-minute market. It looks up the active `KXBTC15M` event, selects the live contract nearest current BTC/USD spot, and displays YES bid/ask, midpoint, countdown, graph, EMA 9/21, RSI and a conservative HIGHER / LOWER / WAIT momentum read.
+Mobile-first installable web app for the active Kalshi BTC 15-minute market.
 
-## Publish with GitHub Pages
-1. Open **Settings → Pages**.
-2. Under **Build and deployment**, choose **GitHub Actions** as the source.
-3. Open the **Actions** tab and check the `Deploy GRAPH to GitHub Pages` workflow.
-4. When it succeeds, open **Settings → Pages** to find the published URL.
+## Deploy on Cloudflare
+This repo is configured for Cloudflare Workers Static Assets. In the Cloudflare Pages/Workers Git integration, use:
+- Build command: leave blank
+- Deploy command: `npx wrangler deploy`
+- Root directory: `/`
+
+The Worker proxies public market-data requests server-side:
+- `/api/kalshi/*` → Kalshi Trade API v2
+- `/api/spot` → Coinbase BTC/USD spot endpoint
+
+No API keys are needed for these public read-only endpoints. The browser calls same-origin URLs, avoiding the browser-to-third-party CORS failure. The proxy only allows GET requests and fixed upstream hosts.
 
 ## Install on iPhone
-Open the published URL in Safari → Share → Add to Home Screen.
+Open the deployed URL in Safari → Share → Add to Home Screen.
 
-## Data and limitations
-- Uses Kalshi public Trade API v2 event/market endpoints and Binance public BTC/USDT spot ticker.
-- The app calls public endpoints from the browser. If either service blocks browser CORS or changes its API, live data will show a visible error; a server-side proxy would then be required.
-- The graph is built from snapshots collected while the app is open; it is not historical order-book data.
-- EMA/RSI are calculated from observed YES midpoint snapshots. HIGHER/LOWER is a momentum heuristic, not a calibrated probability or settlement prediction.
+## Notes
+- Automatically searches open `KXBTC15M` markets and picks the next contract by close time.
+- YES midpoint snapshots build the live session graph; EMA 9/21 and RSI are based on those observations.
+- HIGHER / LOWER are simple momentum heuristics, not probabilities or settlement predictions. If market data is unavailable or insufficient, the signal stays WAIT.
 - No trading, account access, API keys, or financial transactions.
