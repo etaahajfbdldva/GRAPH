@@ -47,7 +47,20 @@ main{max-width:850px;margin:auto;padding:16px 0 34px}.top{display:flex;justify-c
 const API='/api/kalshi', $=id=>document.getElementById(id);let market=null,mode='balanced',samples=[],btcSamples=[],busy=false,series='KXBTC15M',lastMarketFetch=0;
 const fmtC=v=>Number.isFinite(v)?(v*100).toFixed(1)+'¢':'—',fmtUsd=v=>Number.isFinite(v)?'$'+v.toLocaleString('en-US',{maximumFractionDigits:2}):'—';
 async function get(url){const u=new URL(url,location.href);u.searchParams.set('_t',Date.now());const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return r.json()}
-async function spot(){const d=await get('/api/spot');const amount=Number(d.data?.amount);if(!Number.isFinite(amount))throw Error('BTC spot feed unavailable');return amount}
+let liveSpot=null,spotSocket=null,spotReconnectTimer=null;
+async function spot(){if(Number.isFinite(liveSpot))return liveSpot;const d=await get('/api/spot');const amount=Number(d.data?.amount);if(!Number.isFinite(amount))throw Error('BTC spot feed unavailable');return amount}
+function connectSpotSocket(){
+ if(spotSocket&&[WebSocket.OPEN,WebSocket.CONNECTING].includes(spotSocket.readyState))return;
+ try{
+  spotSocket=new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  spotSocket.onopen=()=>spotSocket.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['ticker']}));
+  spotSocket.onmessage=event=>{
+   try{const d=JSON.parse(event.data);if(d.type!=='ticker'||d.product_id!=='BTC-USD')return;const p=Number(d.price);if(!Number.isFinite(p))return;liveSpot=p;$('btc').textContent=fmtUsd(p);$('spotmove').textContent='Live Coinbase ticker · streaming';$('dot').classList.add('live');$('conn').textContent='LIVE';}catch(_){}
+  };
+  spotSocket.onclose=()=>{spotSocket=null;clearTimeout(spotReconnectTimer);spotReconnectTimer=setTimeout(connectSpotSocket,1500)};
+  spotSocket.onerror=()=>{try{spotSocket.close()}catch(_){}};
+ }catch(_){clearTimeout(spotReconnectTimer);spotReconnectTimer=setTimeout(connectSpotSocket,2500)}
+}
 function yesBid(m){return Number(m?.yes_bid_dollars??(m?.yes_bid!=null?m.yes_bid/100:NaN))}
 function yesAsk(m){return Number(m?.yes_ask_dollars??(m?.yes_ask!=null?m.yes_ask/100:NaN))}
 function mid(m){const b=yesBid(m),a=yesAsk(m);if(b>0&&a>0)return(b+a)/2;const l=Number(m?.last_price_dollars??(m?.last_price!=null?m.last_price/100:NaN));return Number.isFinite(l)&&l>0?l:null}
@@ -77,8 +90,12 @@ paintOpportunity('yesLow','BUY LOW',ask,Number.isFinite(ask)&&ask<=.45&&higherRe
 paintOpportunity('yesHigh','BUY HIGH',ask,Number.isFinite(ask)&&ask>=.55&&higherStrong);
 paintOpportunity('noLow','BUY LOW',noAsk,Number.isFinite(noAsk)&&noAsk<=.45&&lowerReady);
 paintOpportunity('noHigh','BUY HIGH',noAsk,Number.isFinite(noAsk)&&noAsk>=.55&&lowerStrong);
-paintOpportunity('sellYes','SELL / EXIT',bid,Number.isFinite(bid)&&bid>0&&lowerReady,'sell');
-paintOpportunity('sellNo','SELL / EXIT',noBid,Number.isFinite(noBid)&&noBid>0&&higherReady,'sell');
+const heldYes=currentPosition?.side==='YES',heldNo=currentPosition?.side==='NO';
+const heldPnl=Number(currentPosition?.estimated_profit_percent),profitTarget=Number($('profitTarget')?.value||10);
+const takeProfit=Number.isFinite(heldPnl)&&heldPnl>=profitTarget;
+const exitYes=heldYes&&(lowerReady||takeProfit),exitNo=heldNo&&(higherReady||takeProfit);
+paintOpportunity('sellYes',takeProfit&&heldYes?'TAKE PROFIT YES':'SELL YES',bid,Number.isFinite(bid)&&bid>0&&exitYes,'sell');
+paintOpportunity('sellNo',takeProfit&&heldNo?'TAKE PROFIT NO':'SELL NO',noBid,Number.isFinite(noBid)&&noBid>0&&exitNo,'sell');
 $('chanceNote').textContent='Higher setup confidence: '+(rows.length?Math.round(up/rows.length*100):0)+'% · Lower setup confidence: '+(rows.length?Math.round(down/rows.length*100):0)+'%. These are indicator-alignment scores, not verified win probabilities.';
 
 const enough=btcSamples.length>=Math.max(30,modeCfg.need*12+1)&&total>=4;
@@ -113,7 +130,12 @@ async function submitApprovedOrder(side){
   finally{$('buyYes').disabled=$('buyNo').disabled=false}
 }
 $('buyYes').onclick=()=>submitApprovedOrder('yes');$('buyNo').onclick=()=>submitApprovedOrder('no');
-let currentPosition=null;
+let currentPosition=null,lastPositionCheck=0;
+async function refreshPosition(){
+ if(!market?.ticker||Date.now()-lastPositionCheck<5000)return;
+ lastPositionCheck=Date.now();
+ try{const r=await fetch('/api/position?ticker='+encodeURIComponent(market.ticker),{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'Position lookup failed');currentPosition=d.position||null;analyze()}catch(_){}
+}
 $('profitTarget').oninput=()=>{$('profitTargetLabel').textContent=$('profitTarget').value+'%';$('positionGoal').textContent=$('profitTarget').value+'%';};
 async function checkProfit(){
   $('cashOut').disabled=true;$('profitStatus').textContent='Checking your open Kalshi position…';currentPosition=null;
@@ -154,11 +176,11 @@ async function tick(){
   $('btc').textContent=fmtUsd(s);const delta=btcSamples.length>1?s-btcSamples[0].p:0;$('spotmove').textContent=(delta>=0?'+':'')+fmtUsd(delta)+' since this page opened';
   $('marketname').textContent=(market.title||market.ticker)+' · '+market.ticker;$('yesask').textContent=fmtC(yesAsk(market));$('noask').textContent=fmtC(yesBid(market)>0?1-yesBid(market):NaN);$('mid').textContent=fmtC(mp);
   const close=Date.parse(market.close_time||market.expiration_time||market.latest_expiration_time||'');const left=Number.isFinite(close)?Math.max(0,Math.floor((close-now)/1000)):null;
-  $('timer').textContent=left==null?'—':Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('samples').textContent=btcSamples.length+' samples';$('dot').classList.add('live');$('conn').textContent='LIVE';$('updated').textContent='Updated '+new Date().toLocaleTimeString();analyze();renderChart();
+  $('timer').textContent=left==null?'—':Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('samples').textContent=btcSamples.length+' samples';$('dot').classList.add('live');$('conn').textContent='LIVE';$('updated').textContent='Market book checked '+new Date().toLocaleTimeString();await refreshPosition();analyze();renderChart();
  }catch(e){$('conn').textContent='DATA ISSUE';$('dot').classList.remove('live');$('why').textContent=e.message;$('updated').textContent=e.message}
  finally{busy=false}
 }
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));$('modeLabel').textContent=mode.toUpperCase();$('modehelp').textContent=({conservative:'Conservative: stronger agreement, tighter spread, more time.',balanced:'Balanced: several aligned indicators and reasonable spread.',aggressive:'Aggressive: earlier setups, lower threshold and wider spread.'})[mode];analyze()});
 $('refresh').onclick=tick;$('reset').onclick=()=>{btcSamples=[];samples=[];analyze();renderChart();$('why').textContent='History reset. Collecting new observations.'};
-tick();setInterval(tick,2000);
+connectSpotSocket();tick();setInterval(tick,2000);
 </script></body></html>
