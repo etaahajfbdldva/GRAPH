@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "graph-swing-trader",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-27",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "triggers": {
+    "crons": ["0 14 * * 1-5"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
