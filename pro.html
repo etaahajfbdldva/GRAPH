@@ -70,7 +70,7 @@ function rsi(a,n=14){if(a.length<n+1)return null;let up=0,dn=0;for(let i=a.lengt
 function macd(a){if(a.length<35)return null;return ema(a,12)-ema(a,26)}
 function renderChart(){const c=$('chart'),x=c.getContext('2d'),w=c.width,h=c.height;x.clearRect(0,0,w,h);x.strokeStyle='#283548';for(let i=0;i<4;i++){const y=15+i*(h-35)/3;x.beginPath();x.moveTo(45,y);x.lineTo(w-8,y);x.stroke()}if(btcSamples.length<2)return;const vals=btcSamples.map(v=>v.p),lo=Math.min(...vals),hi=Math.max(...vals),pad=Math.max((hi-lo)*.15,1),mn=lo-pad,mx=hi+pad;x.strokeStyle='#35d39a';x.lineWidth=3;x.beginPath();vals.forEach((v,i)=>{const px=46+i*(w-58)/(vals.length-1),py=15+(mx-v)/(mx-mn)*(h-35);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();x.fillStyle='#91a0b5';x.font='15px system-ui';x.fillText(fmtUsd(mx),3,22);x.fillText(fmtUsd(mn),3,h-8)}
 function setIndicator(name,value,good){return '<div class="indicator"><span>'+name+'</span><b class="'+(good===true?'green':good===false?'red':'yellow')+'">'+value+'</b></div>'}
-function analyze(){if(!market||btcSamples.length<2)return;const prices=btcSamples.map(x=>x.p),yes=samples.map(x=>x.p),spotNow=prices.at(-1),spot5=prices.length>60?spotNow-prices.at(-61):null,spot1=prices.length>12?spotNow-prices.at(-13):null,fast=ema(prices.slice(-9),9),slow=ema(prices.slice(-21),21),rv=rsi(prices),mc=macd(prices),yesNow=yes.at(-1),yes5=yes.length>60?yesNow-yes.at(-61):null;const bid=yesBid(market),ask=yesAsk(market),m=mid(market),spread=bid>0&&ask>0?ask-bid:null;const noAsk=bid>0?1-bid:null;const end=Date.parse(market.close_time||market.expiration_time||market.latest_expiration_time||'');const remain=Number.isFinite(end)?Math.max(0,(end-Date.now())/1000):null;
+function analyze(){if(!market||btcSamples.length<2)return;const prices=btcSamples.map(x=>x.p),yes=samples.map(x=>x.p),spotNow=prices.at(-1),spot5=prices.length>150?spotNow-prices.at(-151):null,spot1=prices.length>30?spotNow-prices.at(-31):null,fast=ema(prices.slice(-9),9),slow=ema(prices.slice(-21),21),rv=rsi(prices),mc=macd(prices),yesNow=yes.at(-1),yes5=yes.length>150?yesNow-yes.at(-151):null;const bid=yesBid(market),ask=yesAsk(market),m=mid(market),spread=bid>0&&ask>0?ask-bid:null;const noAsk=bid>0?1-bid:null;const end=Date.parse(market.close_time||market.expiration_time||market.latest_expiration_time||'');const remain=Number.isFinite(end)?Math.max(0,(end-Date.now())/1000):null;
 let up=0,down=0,rows=[];function add(n,val,dir){if(dir>0)up++;else if(dir<0)down++;rows.push(setIndicator(n,val,dir>0?true:dir<0?false:null))}
 if(fast!=null&&slow!=null)add('EMA 9 vs EMA 21',fast>slow?'Bullish':'Bearish',fast>slow?1:-1);
 if(spot1!=null)add('BTC 1-minute momentum',(spot1>=0?'+':'')+spot1.toFixed(2)+' USD',spot1>0?1:spot1<0?-1:0);
@@ -96,9 +96,14 @@ const takeProfit=Number.isFinite(heldPnl)&&heldPnl>=profitTarget;
 const exitYes=heldYes&&(lowerReady||takeProfit),exitNo=heldNo&&(higherReady||takeProfit);
 paintOpportunity('sellYes',takeProfit&&heldYes?'TAKE PROFIT YES':'SELL YES',bid,Number.isFinite(bid)&&bid>0&&exitYes,'sell');
 paintOpportunity('sellNo',takeProfit&&heldNo?'TAKE PROFIT NO':'SELL NO',noBid,Number.isFinite(noBid)&&noBid>0&&exitNo,'sell');
+const hasPosition=!!(currentPosition&&Number(currentPosition.contracts)>0),shouldExit=heldYes?exitYes:heldNo?exitNo:false;
+$('holdAction').textContent=!hasPosition?'NO OPEN POSITION':shouldExit?(takeProfit?'SELL / TAKE PROFIT':'SELL / EXIT'):'HOLD';
+$('holdAction').className=shouldExit?'red':hasPosition?'green':'yellow';
+$('holdPnl').textContent=Number.isFinite(heldPnl)?(heldPnl>=0?'+':'')+heldPnl.toFixed(1)+'%':'—';
+$('holdReason').textContent=!hasPosition?'No position':takeProfit?'Profit target reached':heldYes&&lowerReady?'Trend turned lower':heldNo&&higherReady?'Trend turned higher':hasPosition?'No exit trigger':'—';
 $('chanceNote').textContent='Higher setup confidence: '+(rows.length?Math.round(up/rows.length*100):0)+'% · Lower setup confidence: '+(rows.length?Math.round(down/rows.length*100):0)+'%. These are indicator-alignment scores, not verified win probabilities.';
 
-const enough=btcSamples.length>=Math.max(30,modeCfg.need*12+1)&&total>=4;
+const enough=btcSamples.length>=150&&total>=4;
 const spreadOK=spreadC!=null&&spreadC<=modeCfg.spread;
 const timeOK=remain==null||remain>=modeCfg.secs;
 const priceOK=entryAsk!=null&&entryAsk>0.05&&entryAsk<0.95;
